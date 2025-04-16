@@ -7,22 +7,34 @@ Biomedical Signal Processing Project that converting the raw amplitude values in
 - Python 3.x installed on your system
 - pip (Python package manager)
 
-## Installation Steps
+## Installation steps
+Clone the repository:
+ ```bash
+ git clone https://github.com/WayanFWP/PSB.git ECG_Morphology
+ cd ECG_Morphology
+ ```
 
-1. Clone the repository:
-    ```bash
-    git clone <repository-url>
-    cd <project-name>
-    ```
+Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-2. Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
+### Using Project Environment (Optional)
+Create virtual env:
+```bash
+python -m venv .venv
+``` 
+then use the virtual env
+```bash 
+source venv/bin/activate
+```
+then install depedencies: 
+```bash
+pip install -r requirements.txt
+```
 Ensure all the above steps are completed before running the application.
 
-## How to use
+## Run the application
 - Windows
 use the gui program for gui output:
     ```bash
