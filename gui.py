@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from algorithm import *  # Assuming algorithm.py contains the necessary functions
 
 class App:
     def __init__(self):
@@ -14,7 +15,7 @@ class App:
 
     def sidebar(self):
         st.sidebar.title("Navigation")
-        self.page = st.sidebar.radio("Go to", ("Home", "Data", "Chart"))
+        self.page = st.sidebar.radio("Go to", ("Data", "Chart"))
 
     def content(self):
         if self.page == "Home":
@@ -28,27 +29,16 @@ class App:
         uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
         if uploaded_file is not None:
             try:
-                # First read all columns to inspect them
-                df = pd.read_csv(uploaded_file)
+                # Read the CSV file
+                data = read_csv_file(uploaded_file)
 
-                # Find the ECG column (case insensitive and handling quotes)
-                ecg_col = None
-                for col in df.columns:
-                    # Strip quotes and whitespace and check case-insensitive match
-                    clean_col = col.strip("'\"").strip()
-                    if clean_col.lower() == 'ecg':
-                        ecg_col = col
-                        break
-
-                if ecg_col is not None:
+                if data is not None:
                     # Keep only the ECG column and reset the column name if needed
-                    st.session_state.data = df[[ecg_col]].copy()
-                    if ecg_col != 'ECG':
-                        st.session_state.data.columns = ['ECG']
+                    st.session_state.data = data
 
                     st.title("PLOT DATA")
                     st.subheader("ECG Data Samples")
-                    st.dataframe(st.session_state.data)
+                    st.dataframe(data)
                 else:
                     st.error("Could not find 'ECG' column in the CSV file.")
                     st.session_state.data = None
