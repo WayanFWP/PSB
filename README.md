@@ -19,7 +19,7 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-### Using Project Environment (Optional)
+#### Using Project Environment (Optional)
 Create virtual env:
 ```bash
 python -m venv .venv
