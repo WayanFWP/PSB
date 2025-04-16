@@ -21,3 +21,16 @@ Biomedical Signal Processing Project that converting the raw amplitude values in
     ```
 
 Ensure all the above steps are completed before running the application.
+
+## How to use
+- Windows
+use the gui program for gui output:
+    ```bash
+    python gui.py
+    ```
+
+- Linux
+use the gui program for gui output:
+    ```bash
+    python3 gui.py
+    ```
