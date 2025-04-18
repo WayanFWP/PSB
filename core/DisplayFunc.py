@@ -52,13 +52,6 @@ def plotLine(title,data):
     st.line_chart(data)
 
 def plotDFT(title, data, absolute=False):
-    """
-    Plot the DFT or IDFT result.
-    Args:
-        title (str): Title of the plot.
-        data (np.ndarray): Data to be plotted.
-        absolute (bool, optional): If True, plot the absolute value. Defaults to False.
-    """
     st.subheader(title)
     if absolute:
         st.line_chart(np.abs(data))
@@ -92,4 +85,12 @@ def complexDataFrame(data):
         'abs': np.abs(data)
     })
     return df
-        
+
+def averageBPM(data, fs):
+    total_segment = len(data) // fs 
+    if total_segment> 1:
+        intervalEachSegment = np.diff(total_segment) / fs
+        bpm = 60 / intervalEachSegment
+        return bpm
+    else:
+        return 0     
