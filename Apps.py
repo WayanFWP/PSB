@@ -1,6 +1,6 @@
 import streamlit as st
-from Logics import Logic
-from Variables import Variable
+from core.Logics import Logic
+from core.Variables import Variable
 
 class App:
     def __init__(self):
