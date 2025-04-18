@@ -42,7 +42,13 @@ def plotDFT(title, data, absolute=False):
     if absolute:
         st.line_chart(np.abs(data))
     else:
-        st.line_chart(data)
+        # Plot real part for IDFT results (or other non-absolute cases)
+        # Streamlit charts cannot directly handle complex numbers
+        st.line_chart(np.real(data))
+
+def plotFilter(title, data):
+    st.subheader(title)
+    st.line_chart(data)
 
 def buttonEvent(whatTodo, execute):
     st.button(f"{whatTodo}", on_click=execute)
