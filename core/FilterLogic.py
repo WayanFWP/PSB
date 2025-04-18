@@ -21,7 +21,7 @@ def IDFT(X):
             angle = 2j * np.pi * k * n / N
             x[n] += X[k] * np.exp(angle)
         x[n] /= N
-    return x
+    return np.real(x)
 
 def LPF(fc, orde, fs):    
     omega_c = 2 * np.pi * fc / fs
@@ -72,3 +72,17 @@ def backward_filter(h, x):
             if n + m < len(x):
                 y[n] += h[m] * x[n + m]
     return y
+
+def moving_average(data, window_size):
+    N = len(data)
+    y = []
+
+    for n in range(N):
+        sum_val = 0
+        count = 0
+        for k in range(M):
+            if n - k >= 0:
+                sum_val += data[n - k]
+                count += 1
+        y.append(sum_val / count)
+    return y    
