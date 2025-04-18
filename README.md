@@ -26,7 +26,9 @@ python -m venv .venv
 ``` 
 then use the virtual env
 ```bash 
-source venv/bin/activate
+python -m venv env
+source env/bin/activate  # Linux/macOS
+env\Scripts\activate     # Windows
 ```
 then install depedencies: 
 ```bash
