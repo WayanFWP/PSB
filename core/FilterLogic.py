@@ -1,6 +1,13 @@
 import numpy as np
 
 def DFT(x):
+    """
+    Compute the Discrete Fourier Transform (DFT) of a 1D array.
+    Args:
+        x (np.ndarray): Input array.
+    Returns:
+        np.ndarray: DFT of the input array.
+    """
     x = np.asarray(x, dtype=np.complex128)
     N = x.shape[0]
     X = np.zeros(N, dtype=np.complex128)
@@ -12,6 +19,13 @@ def DFT(x):
     return X
 
 def IDFT(X):
+    """
+    Compute the Inverse Discrete Fourier Transform (IDFT) of a 1D array.
+    Args:
+        X (np.ndarray): Input array.
+    Returns:
+        np.ndarray: IDFT of the input array.
+    """
     X = np.asarray(X, dtype=np.complex128)
     N = X.shape[0]
     x = np.zeros(N, dtype=np.complex128)
@@ -23,7 +37,16 @@ def IDFT(X):
         x[n] /= N
     return np.real(x)
 
-def LPF(fc, orde, fs):    
+def LPF(fc, orde, fs):   
+    """
+    Compute the coefficients of a low-pass filter using the sinc function.
+    Args:
+        fc (float): Cutoff frequency.
+        orde (int): Filter order.
+        fs (float): Sampling frequency.
+    Returns:
+        np.ndarray: Filter coefficients.
+    """ 
     omega_c = 2 * np.pi * fc / fs
     M = (orde - 1) // 2
     h = np.zeros(orde)
@@ -35,6 +58,15 @@ def LPF(fc, orde, fs):
     return h
 
 def HPF(fc, orde, fs):
+    """
+    Compute the coefficients of a high-pass filter using the sinc function.
+    Args:
+        fc (float): Cutoff frequency.
+        orde (int): Filter order.
+        fs (float): Sampling frequency.
+    Returns:
+        np.ndarray: Filter coefficients.
+    """
     omega_c = 2 * np.pi * fc / fs
     M = (orde - 1) // 2
     h = np.zeros(orde)
@@ -46,6 +78,16 @@ def HPF(fc, orde, fs):
     return h
 
 def BPF(fc1, fc2, orde, fs):
+    """
+    Compute the coefficients of a band-pass filter using the sinc function.
+    Args:
+        fc1 (float): Lower cutoff frequency.
+        fc2 (float): Upper cutoff frequency.
+        orde (int): Filter order.
+        fs (float): Sampling frequency.
+    Returns:
+        np.ndarray: Filter coefficients.
+    """
     omega_c1 = 2 * np.pi * fc1 / fs
     omega_c2 = 2 * np.pi * fc2 / fs
     M = (orde - 1) // 2
@@ -58,6 +100,14 @@ def BPF(fc1, fc2, orde, fs):
     return h
 
 def forward_filter(h, x):
+    """
+    Apply a forward filter to the input signal.
+    Args:
+        h (np.ndarray): Filter coefficients.
+        x (np.ndarray): Input signal.
+    Returns:
+        np.ndarray: Filtered output signal.
+    """
     y= np.zeros_like(x)
     for n in range(len(x)):
         for m in range(len(h)):
@@ -66,6 +116,14 @@ def forward_filter(h, x):
     return y
 
 def backward_filter(h, x):
+    """
+    Apply a backward filter to the input signal.
+    Args:
+        h (np.ndarray): Filter coefficients.
+        x (np.ndarray): Input signal.
+    Returns:
+        np.ndarray: Filtered output signal.
+    """
     y = np.zeros_like(x)
     for n in range(len(x)):
         for m in range(len(h)):
@@ -74,6 +132,14 @@ def backward_filter(h, x):
     return y
 
 def moving_average(data, window_size):
+    """
+    Compute the moving average of a 1D array.
+    Args:
+        data (np.ndarray): Input array.
+        window_size (int): Size of the moving average window.
+    Returns:
+        np.ndarray: Moving average of the input array.
+    """
     N = len(data)
     y = []
 

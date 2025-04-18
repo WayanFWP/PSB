@@ -3,6 +3,13 @@ import pandas as pd
 import numpy as np
 
 def LOG_INFO(untukApa, data, content = None):
+    """
+    Function to log information in Streamlit app.
+    Args:
+        untukApa (str): Description of the data.
+        data (any): Data to be logged.
+        content (str, optional): Type of content. Defaults to None.
+    """
     print(f"{untukApa}, {data}")
     if content == None:
         st.info(f"{untukApa}, {data}")
@@ -10,6 +17,13 @@ def LOG_INFO(untukApa, data, content = None):
         st.dataframe(data)
 
 def read_csv_file(file_path):
+    """
+    Reads a CSV file and returns a DataFrame with the ECG column.
+    Args:
+        file_path (str): Path to the CSV file.
+    Returns:
+        pd.DataFrame: DataFrame containing only the ECG column.
+    """
     # First read all columns to inspect them
     df = pd.read_csv(file_path)
 
@@ -38,6 +52,13 @@ def plotLine(title,data):
     st.line_chart(data)
 
 def plotDFT(title, data, absolute=False):
+    """
+    Plot the DFT or IDFT result.
+    Args:
+        title (str): Title of the plot.
+        data (np.ndarray): Data to be plotted.
+        absolute (bool, optional): If True, plot the absolute value. Defaults to False.
+    """
     st.subheader(title)
     if absolute:
         st.line_chart(np.abs(data))
@@ -54,6 +75,16 @@ def buttonEvent(whatTodo, execute):
     st.button(f"{whatTodo}", on_click=execute)
 
 def complexDataFrame(data):
+    """
+    Convert complex data to a DataFrame with real and imaginary parts.
+    Args:
+        data (np.ndarray): Complex data to be converted.
+    Returns:
+        pd.DataFrame: DataFrame with real, imaginary, and absolute values.
+    """
+    # Ensure data is a numpy array
+    if not isinstance(data, np.ndarray):
+        data = np.array(data)
     # Convert complex data to a DataFrame with real and imaginary parts
     df = pd.DataFrame({
         'Real': data.real,
