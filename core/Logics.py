@@ -15,8 +15,11 @@ class Logic:
                 # Perform DFT on the raw ECG data
                 self.loadDFT(self.var.dataECG, absolute=True, transformType="DFT")
 
-                self.applyFilter("LPF", self.var.dft, fcl=self.var.fcl, fch = self.var.fch,orde=4, fs=self.var.fs)                
-
+                self.applyFilter("LPF", self.var.dft, True, fcl=self.var.fcl, fch = self.var.fch, orde=self.var.orde, fs=self.var.fs)                
+        if self.var.filtered_data is not None:
+            filtered_data = self.var.filtered_data
+            plotLine("Filtered Data", IDFT(filtered_data))
+            
 
         else: st.write("Please upload data first on the 'Data' page.")
 
@@ -57,19 +60,19 @@ class Logic:
                 # Perform DFT on the data
                 dft_result = DFT(data_input)
                 plotDFT("DFT Result", dft_result, absolute)
-                self.var.dft = dft_result
             elif transformType == "IDFT":
                 # Perform IDFT on the DFT data
                 idft_result = IDFT(data_input)
                 plotDFT("IDFT Result", idft_result, absolute)
-                self.var.dft = idft_result
+
+            self.var.dft = dft_result
 
         except Exception as e:
             st.error(f"Error during {transformType}: {e}")
             LOG_INFO("Error", self.var.dft, content="dataframe")
             self.var.dft = None
 
-    def applyFilter(self, filter_type="LPF", data_input=None, fcl=None, fch=None, orde=None, fs=None):
+    def applyFilter(self, filter_type="LPF", data_input=None, absolute=False,fcl=None, fch=None, orde=None, fs=None):
         if data_input is None:
             st.warning("No data to filter.")
             return
@@ -79,29 +82,25 @@ class Logic:
                 h_i = LPF(fcl, orde, fs)
                 filtered_data = forward_filter(h_i, data_input)
                 filtered_data = backward_filter(h_i, filtered_data)
-                self.var.filtered_data = filtered_data
                 
-                filtered_data = IDFT(filtered_data)
-                plotDFT("LPF Result", filtered_data)
+                proceed = DFT(filtered_data)
+                plotDFT("LPF Result", proceed, absolute)
             elif filter_type == "HPF":
                 h_i = HPF(fcl, orde, fs)
                 filtered_data = forward_filter(h_i, data_input)
                 filtered_data = backward_filter(h_i, filtered_data)
-                self.var.filtered_data = filtered_data
 
-                filtered_data = IDFT(filtered_data)
-                plotDFT("LPF Result", filtered_data)
+                proceed = DFT(filtered_data)
+                plotDFT("HPF Result", proceed, absolute)
             elif filter_type == "BPF":
                 h_i = BPF(fcl, fch, orde, fs)
                 filtered_data = forward_filter(h_i, data_input)
                 filtered_data = backward_filter(h_i, filtered_data)
-                self.var.filtered_data = filtered_data
 
-                filtered_data = IDFT(filtered_data)
-                plotDFT("LPF Result", filtered_data)                
-            else:
-                st.error("Invalid filter type. Please choose LPF, HPF, or BPF.")
-                self.var.filtered_data = None
+                proceed = DFT(filtered_data)
+                plotDFT("BPF Result", proceed, absolute)               
+
+            self.var.filtered_data = np.real(filtered_data)
 
         except Exception as e:
             st.error(f"Error during {filter_type}: {e}")

@@ -2,11 +2,11 @@ import streamlit as st
 
 class Variable:
     def __init__(self):
-        self.fs = 100  # Sampling frequency
+        self.fs = 400 # Sampling frequency
         self.amplitude = 1  # Amplitude
         self.fcl = 200  # Low cutoff frequency
         self.fch = 0
-        self.orde = 3
+        self.orde = 6
 
         self._dataECG = None
         self._dft = None
