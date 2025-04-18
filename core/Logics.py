@@ -1,6 +1,6 @@
 import streamlit as st
-from DisplayFunc import *
-from FilterLogic import *
+from .DisplayFunc import *
+from .FilterLogic import *
 
 class Logic:
     def __init__(self, variable):
@@ -15,7 +15,7 @@ class Logic:
                 # Perform DFT on the raw ECG data
                 self.loadDFT(self.var.dataECG, absolute=True, transformType="DFT")
 
-                self.applyFilter("LPF", self.var.dft, fcl=100, fch = 0,orde=4, fs=self.var.fs)                
+                self.applyFilter("LPF", self.var.dft, fcl=self.var.fcl, fch = self.var.fch,orde=4, fs=self.var.fs)                
 
 
         else: st.write("Please upload data first on the 'Data' page.")
@@ -66,6 +66,7 @@ class Logic:
 
         except Exception as e:
             st.error(f"Error during {transformType}: {e}")
+            LOG_INFO("Error", self.var.dft, content="dataframe")
             self.var.dft = None
 
     def applyFilter(self, filter_type="LPF", data_input=None, fcl=None, fch=None, orde=None, fs=None):
@@ -79,6 +80,7 @@ class Logic:
                 filtered_data = forward_filter(h_i, data_input)
                 filtered_data = backward_filter(h_i, filtered_data)
                 self.var.filtered_data = filtered_data
+                
                 filtered_data = IDFT(filtered_data)
                 plotDFT("LPF Result", filtered_data)
             elif filter_type == "HPF":
@@ -86,12 +88,17 @@ class Logic:
                 filtered_data = forward_filter(h_i, data_input)
                 filtered_data = backward_filter(h_i, filtered_data)
                 self.var.filtered_data = filtered_data
+
+                filtered_data = IDFT(filtered_data)
+                plotDFT("LPF Result", filtered_data)
             elif filter_type == "BPF":
                 h_i = BPF(fcl, fch, orde, fs)
                 filtered_data = forward_filter(h_i, data_input)
                 filtered_data = backward_filter(h_i, filtered_data)
-                plotFilter("BPF Result", filtered_data)
                 self.var.filtered_data = filtered_data
+
+                filtered_data = IDFT(filtered_data)
+                plotDFT("LPF Result", filtered_data)                
             else:
                 st.error("Invalid filter type. Please choose LPF, HPF, or BPF.")
                 self.var.filtered_data = None

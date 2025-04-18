@@ -4,13 +4,12 @@ def DFT(x):
     x = np.asarray(x, dtype=np.complex128)
     N = x.shape[0]
     X = np.zeros(N, dtype=np.complex128)
-    
+
     for k in range(N):
         for n in range(N):
             angle = -2j * np.pi * k * n / N
             X[k] += x[n] * np.exp(angle)
     return X
-
 
 def IDFT(X):
     X = np.asarray(X, dtype=np.complex128)
@@ -24,7 +23,7 @@ def IDFT(X):
         x[n] /= N
     return x
 
-def LPF(fc, orde, fs):
+def LPF(fc, orde, fs):    
     omega_c = 2 * np.pi * fc / fs
     M = (orde - 1) // 2
     h = np.zeros(orde)

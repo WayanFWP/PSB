@@ -4,6 +4,9 @@ class Variable:
     def __init__(self):
         self.fs = 100  # Sampling frequency
         self.amplitude = 1  # Amplitude
+        self.fcl = 200  # Low cutoff frequency
+        self.fch = 0
+        self.orde = 3
 
         self._dataECG = None
         self._dft = None
