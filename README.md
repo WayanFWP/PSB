@@ -38,11 +38,11 @@ Ensure all the above steps are completed before running the application.
 - Windows
 use the gui program for gui output:
     ```bash
-    streamlit run gui.py
+    streamlit run Apps.py
     ```
 
 - Linux
 use the gui program for gui output:
     ```bash
-    streamlit run gui.py
+    streamlit run Apps.py
     ```
