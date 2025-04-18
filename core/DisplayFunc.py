@@ -52,4 +52,13 @@ def plotFilter(title, data):
 
 def buttonEvent(whatTodo, execute):
     st.button(f"{whatTodo}", on_click=execute)
+
+def complexDataFrame(data):
+    # Convert complex data to a DataFrame with real and imaginary parts
+    df = pd.DataFrame({
+        'Real': data.real,
+        'Imaginary': data.imag,
+        'abs': np.abs(data)
+    })
+    return df
         
