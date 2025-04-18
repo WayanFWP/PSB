@@ -1,22 +1,25 @@
 import numpy as np
-import pandas as pd
 
-def read_csv_file(file_path):
-    # First read all columns to inspect them
-    df = pd.read_csv(file_path)
+def DFT(x):
+    x = np.asarray(x, dtype=np.complex128)  # pastikan input berupa array kompleks
+    N = x.shape[0]
+    X = np.zeros(N, dtype=np.complex128)
+    
+    for k in range(N):
+        for n in range(N):
+            angle = -2j * np.pi * k * n / N
+            X[k] += x[n] * np.exp(angle)
+    return X
 
-        # Find the ECG column (case insensitive and handling quotes)
-    ecg_col = None
-    for col in df.columns:
-        # Strip quotes and whitespace and check case-insensitive match
-        clean_col = col.strip("'\"").strip()
-        if clean_col.lower() == 'ecg':
-            ecg_col = col
-            break
-        
-    if ecg_col is not None:
-        # Keep only the ECG column and reset the column name if needed
-        df = df[[ecg_col]].copy()
-        if ecg_col != 'ECG':
-            df.columns = ['ECG']
-        return df
+
+def IDFT(X):
+    X = np.asarray(X, dtype=np.complex128)
+    N = X.shape[0]
+    x = np.zeros(N, dtype=np.complex128)
+
+    for n in range(N):
+        for k in range(N):
+            angle = 2j * np.pi * k * n / N
+            x[n] += X[k] * np.exp(angle)
+        x[n] /= N
+    return x

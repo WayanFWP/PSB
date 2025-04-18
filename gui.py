@@ -1,13 +1,20 @@
 import streamlit as st
 import pandas as pd
 from algorithm import *  # Assuming algorithm.py contains the necessary functions
+from DisplayFunc import * # Assuming DisplayFunc.py contains the necessary functions
 
 class App:
     def __init__(self):
         self.page = None
+        # Initialize variable
+        self.fs = 100 # Sampling frequency
+
         # Initialize session state for data if it doesn't exist
-        if 'data' not in st.session_state:
-            st.session_state.data = None
+        if 'rawECG' not in st.session_state:
+            st.session_state.rawECG = None
+        if 'dft' not in st.session_state:
+            st.session_state.dft = None            
+        
 
     def run(self):
         self.sidebar()
@@ -15,7 +22,7 @@ class App:
 
     def sidebar(self):
         st.sidebar.title("Navigation")
-        self.page = st.sidebar.radio("Go to", ("Data", "Chart"))
+        self.page = st.sidebar.radio("Go to", ("Chart"))
 
     def content(self):
         if self.page == "Home":
@@ -25,51 +32,81 @@ class App:
         elif self.page == "Chart":
             self.display_chart()
 
+    def display_chart(self):
+        if st.session_state is not None:
+            self.load_and_display_data_raw()
+            self.plotingRawData()
+            
+            # Perform DFT on the raw ECG data
+            if st.session_state.rawECG is not None:
+                st.write("Performing DFT on the data...")
+                # Perform DFT on the raw ECG data
+                self.loadDFT(st.session_state.rawECG, absolute=True, transformType="DFT")
+        
+        else:
+            st.write("Please upload data first on the 'Data' page.")
+    
     def load_and_display_data_raw(self):
-        uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
-        if uploaded_file is not None:
+        # File uploader for CSV files
+        # uploaded_file_path = st.file_uploader("Choose a CSV file", type="csv")
+
+        # For testing purposes, we will use a hardcoded file path
+        uploaded_file_path = "data/samples_10sec.csv"
+
+        if uploaded_file_path is not None:
             try:
-                # Read the CSV file
-                data = read_csv_file(uploaded_file)
+                # Display the uploaded file name
+                data = read_csv_file(uploaded_file_path)
 
                 if data is not None:
-                    # Keep only the ECG column and reset the column name if needed
-                    st.session_state.data = data
-
-                    st.title("PLOT DATA")
-                    st.subheader("ECG Data Samples")
-                    st.dataframe(data)
+                    st.session_state.rawECG = data
+                    tableDisplay("Display Data", data)
                 else:
                     st.error("Could not find 'ECG' column in the CSV file.")
-                    st.session_state.data = None
+                    st.session_state.rawECG = None
 
             except Exception as e:
                 st.error(f"An error occurred while processing the file: {e}")
-                st.session_state.data = None
+                st.session_state.rawECG = None
 
         # Display existing ECG data if already loaded
-        elif st.session_state.data is not None:
-            st.title("PLOT DATA")
-            st.subheader("ECG Data Samples")
-            st.dataframe(st.session_state.data)
-        else:
-            st.info("Upload a CSV file containing an 'ECG' column.")
+        elif st.session_state.rawECG is not None:
+            plotLine("Raw ECG Data", st.session_state.rawECG)
+        else: st.info("Upload a CSV file containing an 'ECG' column.")
+    
+    def plotingRawData(self):
+        if st.session_state.rawECG is not None:
 
-
-    def display_chart(self):
-        # Access data from session state
-        if st.session_state.data is not None:
-            st.subheader("Line Chart")
             # Ensure data is suitable for line chart (e.g., numeric columns)
             # You might need to select specific columns or set an index
             try:
                 # Attempt to display the line chart
-                st.line_chart(st.session_state.data)
+                plotLine("Raw ECG Data", st.session_state.rawECG)
             except Exception as e:
                 st.error(f"Could not display chart. Ensure data is numeric and properly formatted. Error: {e}")
-                st.dataframe(st.session_state.data) # Show data for debugging
-        else:
-            st.write("Please upload data first on the 'Data' page.")
+                st.dataframe(st.session_state.rawECG) 
+
+    def loadDFT(self, data_input=None, absolute=False, transformType="DFT"):
+            if data_input is None:
+                st.warning("Tidak ada data input untuk DFT/IDFT.")
+                return
+
+            try:
+                # Correctly check the transformType parameter
+                if transformType == "DFT":
+                    # Make sure the DFT function is defined/imported and handles data_input correctly
+                    data = DFT(data_input)
+                    plotDFT("DFT Result", data, absolute)
+                    st.session_state.dft = data
+                elif transformType == "IDFT":
+                     # Make sure the IDFT function is defined/imported
+                    data = IDFT(data_input)
+                    plotDFT("IDFT Result", data, absolute)
+                    st.session_state.dft = data # Should this be idft? Or keep dft? Decide based on your needs.
+
+            except Exception as e:
+                st.error(f"An error occurred while calculating {transformType}: {e}")
+                st.session_state.dft = None
 
 if __name__ == "__main__":
     app = App()
