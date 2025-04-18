@@ -1,7 +1,7 @@
 import numpy as np
 
 def DFT(x):
-    x = np.asarray(x, dtype=np.complex128)  # pastikan input berupa array kompleks
+    x = np.asarray(x, dtype=np.complex128)
     N = x.shape[0]
     X = np.zeros(N, dtype=np.complex128)
     
@@ -23,3 +23,53 @@ def IDFT(X):
             x[n] += X[k] * np.exp(angle)
         x[n] /= N
     return x
+
+def LPF(fc, orde):
+    omega_c = 2 * np.pi * fc
+    M = (orde - 1) // 2
+    h = np.zeros(orde)
+    for n in range(-M, M + 1):
+        if n == 0:
+            h[n + M] = omega_c / np.pi
+        else:
+            h[n + M] = np.sin(omega_c * n) / (np.pi * n)
+    return h
+
+def HPF(fc, orde):
+    omega_c = 2 * np.pi * fc
+    M = (orde - 1) // 2
+    h = np.zeros(orde)
+    for n in range(-M, M + 1):
+        if n == 0:
+            h[n + M] = 1 - omega_c / np.pi
+        else:
+            h[n + M] = -np.sin(omega_c * n) / (np.pi * n)
+    return h
+
+def BPF(fc1, fc2, orde):
+    omega_c1 = 2 * np.pi * fc1
+    omega_c2 = 2 * np.pi * fc2
+    M = (orde - 1) // 2
+    h = np.zeros(orde)
+    for n in range(-M, M + 1):
+        if n == 0:
+            h[n + M] = (omega_c2 - omega_c1) / np.pi
+        else:
+            h[n + M] = (np.sin(omega_c2 * n) - np.sin(omega_c1 * n)) / (np.pi * n)
+    return h
+
+def forward_filter(h, x):
+    y= np.zeros_like(x)
+    for n in range(len(x)):
+        for m in range(len(h)):
+            if n - m >= 0:
+                y[n] += h[m] * x[n - m]
+    return y
+
+def backward_filter(h, x):
+    y = np.zeros_like(x)
+    for n in range(len(x)):
+        for m in range(len(h)):
+            if n + m < len(x):
+                y[n] += h[m] * x[n + m]
+    return y
