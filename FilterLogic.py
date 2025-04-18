@@ -24,8 +24,8 @@ def IDFT(X):
         x[n] /= N
     return x
 
-def LPF(fc, orde):
-    omega_c = 2 * np.pi * fc
+def LPF(fc, orde, fs):
+    omega_c = 2 * np.pi * fc / fs
     M = (orde - 1) // 2
     h = np.zeros(orde)
     for n in range(-M, M + 1):
@@ -35,8 +35,8 @@ def LPF(fc, orde):
             h[n + M] = np.sin(omega_c * n) / (np.pi * n)
     return h
 
-def HPF(fc, orde):
-    omega_c = 2 * np.pi * fc
+def HPF(fc, orde, fs):
+    omega_c = 2 * np.pi * fc / fs
     M = (orde - 1) // 2
     h = np.zeros(orde)
     for n in range(-M, M + 1):
@@ -46,9 +46,9 @@ def HPF(fc, orde):
             h[n + M] = -np.sin(omega_c * n) / (np.pi * n)
     return h
 
-def BPF(fc1, fc2, orde):
-    omega_c1 = 2 * np.pi * fc1
-    omega_c2 = 2 * np.pi * fc2
+def BPF(fc1, fc2, orde, fs):
+    omega_c1 = 2 * np.pi * fc1 / fs
+    omega_c2 = 2 * np.pi * fc2 / fs
     M = (orde - 1) // 2
     h = np.zeros(orde)
     for n in range(-M, M + 1):

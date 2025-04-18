@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from algorithm import *  # Assuming algorithm.py contains the necessary functions
+from FilterLogic import *  # Assuming algorithm.py contains the necessary functions
 from DisplayFunc import * # Assuming DisplayFunc.py contains the necessary functions
 
 class App:
@@ -10,21 +10,43 @@ class App:
         self.fs = 100 # Sampling frequency
         self.amplitude = 1 # Amplitude
 
+        self._dataECG = None
+        self._dft = None
+        self._filtered_data = None
+
         # Initialize session state for data if it doesn't exist
-        if 'dataECG' not in st.session_state:
-            st.session_state.dataECG = None
-        if 'dft' not in st.session_state:
-            st.session_state.dft = None     
-        if  'filtered_data' not in st.session_state:
-            st.session_state.filtered_data = None
+        st.session_state.setdefault('dataECG', None)
+        st.session_state.setdefault('dft', None)
+        st.session_state.setdefault('filtered_data', None)
+    # Getter and Setter for each variable
+    @property
+    def dataECG(self):
+        return self._dataECG
+    @dataECG.setter
+    def dataECG(self, value):
+        self._dataECG = value
+        st.session_state.dataECG = value
+    @property
+    def dft(self):
+        return self._dft
+    @dft.setter
+    def dft(self, value):
+        self._dft = value
+        st.session_state.dft = value
+    @property
+    def filtered_data(self):
+        return self._filtered_data
+    @filtered_data.setter
+    def filtered_data(self, value):
+        self._filtered_data = value
+        st.session_state.filtered_data = value
 
     def process_data(self):
         if st.session_state is not None:
 
             # Load and display the data by hardcoding the file path
             self.loadDisplayData("data/samples_10sec.csv", action="hardcode")
-            self.plotData()
-            
+            LOG_INFO("Load Data", st.session_state.dataECG, content="dataframe")            
             # Perform DFT on the raw ECG data
             if st.session_state.dataECG is not None:
                 st.write("Performing DFT on the data...")
@@ -43,11 +65,18 @@ class App:
 
             # Apply filters to the DFT data
             if st.session_state.dft is not None:
-                st.write("Applying filters to the DFT data...")
-                # Apply LPF
-                self.aplyFilter(st.session_state.dft, filter_type="LPF", fc=100, orde=5)
-                # Apply BPF
-                # self.aplyFilter(st.session_state.dft, filter_type="BPF", fc=100, orde=5)                    
+                try: 
+                    st.write("Applying filters to the DFT data...")
+                    # Apply LPF
+                    self.applyFilter(st.session_state.dft, filter_type="LPF", fcl=100, fch=0, orde=5)
+
+                    # Apply BPF
+                    # self.applyFilter(st.session_state.dft, filter_type="BPF", fcl=100, fch=, orde=5)                    
+                expect Exception as e:
+                    st.dataframe(st.session_state.dft)
+                    st.session_state.filtered_data = None
+            
+
         else:
             st.write("Please upload data first on the 'Data' page.")
     
@@ -116,14 +145,14 @@ class App:
                 st.error(f"An error occurred while calculating {transformType}: {e}")
                 st.session_state.dft = None
 
-    def aplyFilter(self, data_input=None , filter_type="LPF", fc=0, orde=0):
+    def applyFilter(self, data_input=None , filter_type="LPF", fcl=0, fch=0, orde=0):
         if data_input is None:
             st.warning("Tidak ada data input untuk filter.")
             return
 
         try:
             if filter_type == "LPF":
-                h_i = LPF(fc, orde)
+                h_i = LPF(fcl, orde)
                 # apply the filter to the data 
                 data = forward_filter(h_i, data_input)
                 data = backward_filter(h_i, data)
@@ -132,7 +161,7 @@ class App:
                 st.session_state.filtered_data = data
 
             elif filter_type == "HPF":
-                h_i = HPF(fc, orde)
+                h_i = HPF(fch, orde)
                 # apply the filter to the data
                 data = forward_filter(h_i, data_input)
                 data = backward_filter(h_i, data)
@@ -141,7 +170,7 @@ class App:
                 st.session_state.filtered_data = data
 
             elif filter_type == "BPF":
-                h_i = BPF(fc, orde)
+                h_i = BPF(fcl, fch, orde)
                 # apply the filter to the data
                 data = forward_filter(h_i, data_input)
                 data = backward_filter(h_i, data)
@@ -154,6 +183,7 @@ class App:
         except Exception as e:
             st.error(f"An error occurred while applying {filter_type}: {e}")
 
+    # custom function for user interaction 
     def run(self):
         self.sidebar()
         self.content()
