@@ -64,27 +64,27 @@ def plotFilter(title, data):
     st.subheader(title)
     st.line_chart(data)
 
-def buttonEvent(whatTodo, execute):
-    st.button(f"{whatTodo}", on_click=execute)
+# def buttonEvent(whatTodo, execute):
+#     st.button(f"{whatTodo}", on_click=execute)
 
-def complexDataFrame(data):
-    """
-    Convert complex data to a DataFrame with real and imaginary parts.
-    Args:
-        data (np.ndarray): Complex data to be converted.
-    Returns:
-        pd.DataFrame: DataFrame with real, imaginary, and absolute values.
-    """
-    # Ensure data is a numpy array
-    if not isinstance(data, np.ndarray):
-        data = np.array(data)
-    # Convert complex data to a DataFrame with real and imaginary parts
-    df = pd.DataFrame({
-        'Real': data.real,
-        'Imaginary': data.imag,
-        'abs': np.abs(data)
-    })
-    return df
+# def complexDataFrame(data):
+#     """
+#     Convert complex data to a DataFrame with real and imaginary parts.
+#     Args:
+#         data (np.ndarray): Complex data to be converted.
+#     Returns:
+#         pd.DataFrame: DataFrame with real, imaginary, and absolute values.
+#     """
+#     # Ensure data is a numpy array
+#     if not isinstance(data, np.ndarray):
+#         data = np.array(data)
+#     # Convert complex data to a DataFrame with real and imaginary parts
+#     df = pd.DataFrame({
+#         'Real': data.real,
+#         'Imaginary': data.imag,
+#         'abs': np.abs(data)
+#     })
+#     return df
 
 def averageBPM(data, fs):
     total_segment = len(data) // fs 

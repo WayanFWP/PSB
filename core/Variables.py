@@ -2,12 +2,11 @@ import streamlit as st
 
 class Variable:
     def __init__(self):
-        self.fs = 400 # Sampling frequency in Hz
         self.amplitude = 1  # Amplitude in mV
-        self.fcl = 200  # Low cutoff frequency in Hz
-        self.fch = 0 # High cutoff frequency in Hz
-        self.orde = 6
-        self.move = 30 # Moving average window size
+        self.GLOBAL_fcl = st.sidebar.slider("Low Cutoff Frequency", min_value=10,max_value=100, value=10)  # Low cutoff frequency in Hz
+        self.GLOBAL_fch = st.sidebar.slider("High Cutoff Frequency", min_value=1, max_value=50, value=1) # High cutoff frequency in Hz
+        self.GLOBAL_orde = st.sidebar.slider("Filter Order", min_value=1, max_value=100, value=1)
+        self.GLOBAL_MAV = 30 # Moving average window size
 
         self._dataECG = None
         self._dft = None

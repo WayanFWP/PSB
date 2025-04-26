@@ -2,6 +2,8 @@ import streamlit as st
 from core.Logics import Logic
 from core.Variables import Variable
 
+st.set_page_config(page_title="ECG Signal Processing", layout="wide")
+
 class App:
     def __init__(self):
         self.vars = Variable()
@@ -9,7 +11,6 @@ class App:
         self.page = None
     
     def run(self):
-        st.set_page_config(page_title="ECG Signal Processing", layout="wide")
         self.sidebar()
         self.content()
 

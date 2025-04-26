@@ -1,46 +1,55 @@
 import streamlit as st
+import numpy as np
 from .DisplayFunc import *
 from .FilterLogic import *
+from traceback import print_exc
 
 class Logic:
     def __init__(self, variable):
         self.var = variable
+        self.file_path = "data/samples_10sec.csv"
+        self.fs = None # Default sampling frequency
 
     def process_data(self):
+        # step 1
+        file_path = st.sidebar.file_uploader("Upload CSV file", type=["csv"])
+        self.loadDisplayData(file_path=self.file_path)
+        # self.loadDisplayData(file_path)
+        # LOG_INFO("Load Data", self.var.dataECG, content="dataframe")
+        # self.fs = np.max(self.var.dataECG)
+
         if self.var is not None:
-            self.loadDisplayData("data/samples_10sec.csv", action="hardcode")
-            LOG_INFO("Load Data", self.var.dataECG, content="dataframe")
-            if self.var.dataECG is not None:
-                st.write("Performing DFT on the data...")
-                # Perform DFT on the raw ECG data
-                self.loadDFT(self.var.dataECG, absolute=True, transformType="DFT")
+            st.write("Performing DFT on the data...")
+            # Perform DFT on the raw ECG data
+            self.loadDFT(self.var.dataECG, absolute=True, transformType="DFT")
 
-                self.applyFilter("LPF", self.var.dft, True, fcl=self.var.fcl, fch = self.var.fch, orde=self.var.orde, fs=self.var.fs)                
-        if self.var.filtered_data is not None:
-            filtered_data = self.var.filtered_data
-            plotLine("Filtered Data", IDFT(filtered_data))
-            
+        
+        if self.var.dataECG is not None:
+            st.subheader("Plot filtered data...")
+            fc_low = st.slider("Low Cutoff for LPF", min_value=1, max_value=500, value=100)
+            orde = st.slider("Filter Order", min_value=1, max_value=10, value=4)
+            fs_lowpass = 2*np.max(self.var.dataECG)  # Sampling frequency
 
+            # st.write(f"Parameters: fc_low={fc_low}, orde={orde}, fs={fs}")
+
+            amplitude = self.var.dataECG - np.mean(self.var.dataECG)
+            self.applyFilter(filter_type="LPF", data_input=amplitude, absolute=True, fcl=fc_low, fch = 1, orde=1, fs=fs_lowpass)       
+            # self.applyFilter(filter_type="LPF", data_input=self.var.dft, absolute=False, fcl=fc_low, fch = 1, orde=1, fs=self.fs)       
+
+       
         else: st.write("Please upload data first on the 'Data' page.")
 
 
-    def loadDisplayData(self, file_path=None, data_title="Raw ECG", action="hardcode"):
-        if action == "hardcode":
-            # Hardcoded file path
-            file_path = "data/samples_10sec.csv"
-        else:
-            # Use the uploaded file path
-            file_path = st.file_uploader("Upload CSV file", type=["csv"])
-
+    def loadDisplayData(self, file_path=None, data_title="Raw ECG"):
         # Read the CSV file and extract the ECG column
-        self.var.dataECG = read_csv_file(file_path)
         if file_path is not None:
+            self.var.dataECG = read_csv_file(file_path)
             try:
                 data = self.var.dataECG
 
                 if data is not None:
-                    tableDisplay(f"Display {data_title} Data", data)
                     plotLine(f"{data_title} Data", data)
+                    tableDisplay(f"Display {data_title} Data", data)
                     self.var.dataECG = data
                 else:
                     st.error("Could not find 'ECG' column in the CSV file.")
@@ -48,7 +57,7 @@ class Logic:
                 st.error(f"Error reading the file: {e}")
         
         elif self.var.dataECG is not None: plotLine(f"{data_title} Data", self.var.dataECG)
-        else: st.error("Please upload a file first.")
+        # else: st.error("Please upload a file first.")
 
     def loadDFT(self, data_input, absolute=False, transformType="DFT"):
         if data_input is None:
@@ -77,6 +86,21 @@ class Logic:
             st.warning("No data to filter.")
             return
 
+        import pandas as pd
+        if isinstance(data_input, pd.DataFrame):
+            data_input = data_input.values.flatten()  # Convert DataFrame to 1D array
+
+        # Validasi parameter
+        if fcl is None or fcl <= 0:
+            st.error("Invalid Low Cutoff Frequency (fcl). It must be greater than 0.")
+            return
+        if orde is None or orde <= 0:
+            st.error("Invalid Filter Order (orde). It must be greater than 0.")
+            return
+        if fs is None or fs <= 0:
+            st.error("Invalid Sampling Frequency (fs). It must be greater than 0.")
+            return
+
         try:
             if filter_type == "LPF":
                 h_i = LPF(fcl, orde, fs)
@@ -103,5 +127,6 @@ class Logic:
             self.var.filtered_data = np.real(filtered_data)
 
         except Exception as e:
+            print_exc()
             st.error(f"Error during {filter_type}: {e}")
             self.var.filtered_data = None

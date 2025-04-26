@@ -19,7 +19,6 @@ def DFT(x):
     return X
 
 def IDFT(X):
-
     X = np.asarray(X, dtype=np.complex128)
     N = X.shape[0]
     x = np.zeros(N, dtype=np.complex128)
@@ -37,6 +36,9 @@ def LPF(fc, orde, fs):
     Returns:
         np.ndarray: Filter coefficients.
     """ 
+    if fc <= 0 or fs <= 0 or orde <= 0:
+        raise ValueError("Cutoff frequency, sampling frequency, and order must be positive.")
+
     omega_c = 2 * np.pi * fc / fs
     M = (orde - 1) // 2
     h = np.zeros(orde)
@@ -48,6 +50,8 @@ def LPF(fc, orde, fs):
     return h
 
 def HPF(fc, orde, fs):
+    if fc <= 0 or fs <= 0 or orde <= 0:
+        raise ValueError("Cutoff frequency, sampling frequency, and order must be positive.")
     omega_c = 2 * np.pi * fc / fs
     M = (orde - 1) // 2
     h = np.zeros(orde)
@@ -59,6 +63,8 @@ def HPF(fc, orde, fs):
     return h
 
 def BPF(fc1, fc2, orde, fs):
+    if fc1 <= 0 or fc2 <= 0 or fs <= 0 or orde <= 0:
+        raise ValueError("Cutoff frequencies, sampling frequency, and order must be positive.")
     omega_c1 = 2 * np.pi * fc1 / fs
     omega_c2 = 2 * np.pi * fc2 / fs
     M = (orde - 1) // 2
