@@ -16,13 +16,13 @@ class App:
 
     def sidebar(self):
         st.sidebar.title("Navigation")
-        self.page = st.sidebar.radio("Select a page:", ["Chart"])
+        # self.page = st.sidebar.radio("Select a page:", ["Home", "Flow_data"])
+        self.page = st.sidebar.radio("Select a page:", ["Flow_data"])
         if self.page == "Home":
-            st.sidebar.info("Welcome to the ECG Signal Processing App!")
-        elif self.page == "Data":
-            st.sidebar.info("Display Data Page")
-        elif self.page == "Chart":
-            st.sidebar.info("Chart Page")
+            st.sidebar.info("Welcome to the ECG Signal Processing App!")        
+            file_path = st.sidebar.file_uploader("Upload CSV file", type=["csv", "txt"])
+            self.logic.loadDisplayData(self.vars.dataECG)
+
         
     def content(self):
         if self.page == "Home":
@@ -32,7 +32,7 @@ class App:
         elif self.page == "Data":
             st.title("Data Display")
             self.logic.loadDisplayData()
-        elif self.page == "Chart":
+        elif self.page == "Flow_data":
             self.logic.process_data()
 
 if __name__ == "__main__":
