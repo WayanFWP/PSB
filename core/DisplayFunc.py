@@ -24,32 +24,34 @@ def read_csv_file(file_path):
     Returns:
         pd.DataFrame: DataFrame containing only the ECG column.
     """
-    # First read all columns to inspect them
-    df = pd.read_csv(file_path)
+    # Skip the second row only (unit description), but use the first row as header
+    df = pd.read_csv(file_path, skiprows=[1])
 
-    # Find the ECG column (case insensitive and handling quotes)
-    ecg_col = None
-    for col in df.columns:
-        # Strip quotes and whitespace and check case-insensitive match
-        clean_col = col.strip("'\"").strip()
-        if clean_col.lower() == 'ecg':
-            ecg_col = col
-            break
-        
-    if ecg_col is not None:
-        # Keep only the ECG column and reset the column name if needed
-        df = df[[ecg_col]].copy()
-        if ecg_col != 'ECG':
-            df.columns = ['ECG']
-        return df
+    # Clean column names (strip quotes and whitespace)
+    df.columns = df.columns.str.strip("'\" ").str.strip()
+
+    # Convert the columns to numeric
+    df['sample interval'] = pd.to_numeric(df['sample interval'], errors='coerce')
+    df['ECG'] = pd.to_numeric(df['ECG'], errors='coerce')
+
+    # Keep only the ECG column
+    return df[['ECG']]
+
 
 def tableDisplay(title, data):
     st.subheader(title)
     st.dataframe(data)
 
-def plotLine(title,data):
+def plotLine(title,data, compare=None, title2=None):
     st.subheader(title)
-    st.line_chart(data)
+    if compare is None:
+        st.line_chart(data)
+    else:
+        plotdata = pd.DataFrame({
+            title: data,
+            title2: compare
+        })
+        st.line_chart(plotdata)
 
 def plotDFT(title, data, absolute=False):
     st.subheader(title)
@@ -84,13 +86,4 @@ def plotFilter(title, data):
 #         'Imaginary': data.imag,
 #         'abs': np.abs(data)
 #     })
-#     return df
-
-def averageBPM(data, fs):
-    total_segment = len(data) // fs 
-    if total_segment> 1:
-        intervalEachSegment = np.diff(total_segment) / fs
-        bpm = 60 / intervalEachSegment
-        return bpm
-    else:
-        return 0     
+#     return df 

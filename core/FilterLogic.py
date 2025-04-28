@@ -232,17 +232,16 @@ def forward_backward_filter(b, a, x):
     y = backward_filter_IIR(b, a, y_forward)
     return y
 
-# def segment_ecg(data, threshold_p=[15, 21], threshold_q=[-25, -35], threshold_r=[115, 140], threshold_s=[-60, -85], threshold_t=[32, 43], interval=80):
 def segment_ecg(data, threshold_p=[15, 21], threshold_q=[-35, -25], threshold_r=[115, 140], threshold_s=[-85, -60], threshold_t=[32, 43], interval=80):
     """
-    Segmentasi sinyal EKG berdasarkan threshold nilai P, Q, R, S, dan T dengan interval waktu.
+    Segmentasi sinyal EKG berdasarkan threshold value P, Q, R, S, dan T dengan interval waktu.
     """
     segmentation = {
-        'P': {'lokasi': [], 'nilai': []},
-        'Q': {'lokasi': [], 'nilai': []},
-        'R': {'lokasi': [], 'nilai': []},
-        'S': {'lokasi': [], 'nilai': []},
-        'T': {'lokasi': [], 'nilai': []}
+        'P': {'address': [], 'value': []},
+        'Q': {'address': [], 'value': []},
+        'R': {'address': [], 'value': []},
+        'S': {'address': [], 'value': []},
+        'T': {'address': [], 'value': []}
     }
 
     last_detection = {
@@ -253,52 +252,52 @@ def segment_ecg(data, threshold_p=[15, 21], threshold_q=[-35, -25], threshold_r=
         'T': -interval
     }
 
-    for i, nilai in enumerate(data):
+    for i, value in enumerate(data):
         # Deteksi gelombang P
-        if threshold_p[0] <= nilai <= threshold_p[1] and i - last_detection['P'] > interval:
-            segmentation['P']['lokasi'].append(i)
-            segmentation['P']['nilai'].append(nilai)
+        if threshold_p[0] <= value <= threshold_p[1] and i - last_detection['P'] > interval:
+            segmentation['P']['address'].append(i)
+            segmentation['P']['value'].append(value)
             last_detection['P'] = i
-            print(f"P terdeteksi pada indeks {i}, nilai {nilai}")
+            print(f"P terdeteksi pada indeks {i}, value {value}")
 
         # Deteksi gelombang Q
-        if threshold_q[0] <= nilai <= threshold_q[1] and i - last_detection['Q'] > interval:
-            segmentation['Q']['lokasi'].append(i)
-            segmentation['Q']['nilai'].append(nilai)
+        if threshold_q[0] <= value <= threshold_q[1] and i - last_detection['Q'] > interval:
+            segmentation['Q']['address'].append(i)
+            segmentation['Q']['value'].append(value)
             last_detection['Q'] = i
-            print(f"Q terdeteksi pada indeks {i}, nilai {nilai}")
+            print(f"Q terdeteksi pada indeks {i}, value {value}")
 
         # Deteksi gelombang R
-        if threshold_r[0] <= nilai <= threshold_r[1] and i - last_detection['R'] > interval:
-            segmentation['R']['lokasi'].append(i)
-            segmentation['R']['nilai'].append(nilai)
+        if threshold_r[0] <= value <= threshold_r[1] and i - last_detection['R'] > interval:
+            segmentation['R']['address'].append(i)
+            segmentation['R']['value'].append(value)
             last_detection['R'] = i
-            print(f"R terdeteksi pada indeks {i}, nilai {nilai}")
+            print(f"R terdeteksi pada indeks {i}, value {value}")
 
         # Deteksi gelombang S
-        if threshold_s[0] <= nilai <= threshold_s[1] and i - last_detection['S'] > interval:
-            segmentation['S']['lokasi'].append(i)
-            segmentation['S']['nilai'].append(nilai)
+        if threshold_s[0] <= value <= threshold_s[1] and i - last_detection['S'] > interval:
+            segmentation['S']['address'].append(i)
+            segmentation['S']['value'].append(value)
             last_detection['S'] = i
-            print(f"S terdeteksi pada indeks {i}, nilai {nilai}")
+            print(f"S terdeteksi pada indeks {i}, value {value}")
 
         # Deteksi gelombang T
-        if threshold_t[0] <= nilai <= threshold_t[1] and i - last_detection['T'] > interval:
-            segmentation['T']['lokasi'].append(i)
-            segmentation['T']['nilai'].append(nilai)
+        if threshold_t[0] <= value <= threshold_t[1] and i - last_detection['T'] > interval:
+            segmentation['T']['address'].append(i)
+            segmentation['T']['value'].append(value)
             last_detection['T'] = i
-            print(f"T terdeteksi pada indeks {i}, nilai {nilai}")
+            print(f"T terdeteksi pada indeks {i}, value {value}")
         # else:
-        #     print(f"Tidak ada gelombang terdeteksi pada indeks {i}, nilai {nilai}")
+        #     print(f"Tidak ada gelombang terdeteksi pada indeks {i}, value {value}")
 
     return segmentation
 
 def calculate_heart_rate(r_locations, duration):
     """
-    Menghitung detak jantung (HR) berdasarkan lokasi puncak gelombang R.
+    Menghitung detak jantung (HR) berdasarkan address puncak gelombang R.
 
     Args:
-        r_locations (list): List yang berisi indeks lokasi puncak gelombang R.
+        r_locations (list): List yang berisi indeks address puncak gelombang R.
         fs (float): Sampling frequency (Hz).
         duration (float): Durasi sinyal dalam detik.
 

@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 from .DisplayFunc import *
 from .FilterLogic import *
+from .config import DEFAULT_FILTER_PARAMS, DEFAULT_THRESHOLDS, DEFAULT_SAMPLE_INTERVAL
 from traceback import print_exc
 
 class Logic:
@@ -9,95 +10,156 @@ class Logic:
         self.var = variable
         # self.file_path = "data/samples_10sec.csv"
         self.file_path = "data/samples_1minute.csv"
+        self.filter_params = DEFAULT_FILTER_PARAMS
+        self.thresholds = DEFAULT_THRESHOLDS
+        self.segmentation = {}
 
     # data flow section
     def process_data(self):
-        # step 1
+        try:
+            # step 1
+            if self.var.dataECG is None:
+                file_path = st.sidebar.file_uploader("Upload CSV file", type=["csv", "txt"])
+                self.loadDisplayData(file_path)
+
+            fs = self.samplingFrequency()
+            duration = self.calculate_duration()
+            if fs is None or duration is None:
+                return
+            st.write(f"fs: {fs}, Duration: {duration:.2f} seconds, data: {len(self.var.dataECG)}")
+
+            # Perform DFT on the raw ECG data
+            st.write("Performing DFT on the data...")
+            # loadDFT(self.var.dataECG, absolute=True)
+
+            if self.var.dataECG is not None:
+                st.subheader("Plot filtered data...")
+
+                self.get_filter_parameters()
+                if self.filter_params:
+                    self.filtered_data = self.applyFilter(
+                        filter_type="LPF",
+                        data_input=self.var.dataECG,
+                        absolute=False,
+                        fcl=self.filter_params["fc_l"],
+                        fch=self.filter_params["fc_h"],
+                        orde=self.filter_params["orde_filter"],
+                        frequencySampling=fs,
+                    )
+
+            if self.var.filtered_data is not None:
+                st.subheader("Detecting ECG peaks...")
+                # Input thresholds for ECG peak detection
+                self.get_thresholds()
+                if self.thresholds:
+                    self.segment_ecg_signal()
+                    self.display_segmentation_results(duration)
+            else:
+                st.warning("Please upload data first on the 'Data' page.")
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+
+
+    def samplingFrequency(self):
         if self.var.dataECG is None:
-            file_path = st.sidebar.file_uploader("Upload CSV file", type=["csv", "txt"])
-            self.loadDisplayData(file_path)
-        # elif self.var.dataECG is not None:
-        #     loadDisplayData(self.var.dataECG)  # For testing, using a default file path
-        # hardcoded
-        # self.loadDisplayData(file_path=self.file_path)
+            st.warning("No data to process.")
+            return None
+        return 2 * np.max(np.abs(self.var.dataECG))
 
-        # Perform DFT on the raw ECG data
-        # st.write("Performing DFT on the data...")
-        # self.loadDFT(self.var.dataECG, absolute=True, transformType="DFT")
-        if self.var.dataECG is not None:
-            fs = 2 * np.max(np.abs(self.var.dataECG))  # Default sampling frequency using fs = 2 * max absolute value            
-            duration = len(self.var.dataECG) * 0.01  # Duration in seconds why using 0.01? because the sample interval is 0.01 seconds
-            st.write(f"fs: {fs},Duration: {duration:.2f} seconds, data: {len(self.var.dataECG)}")
-            st.subheader("Plot filtered data...")
+    def calculate_duration(self):
+        if self.var.dataECG is None:
+            st.warning("No data to process.")
+            return None
+        return len(self.var.dataECG) * DEFAULT_SAMPLE_INTERVAL
 
-            filter_param = {
-                "fc_l": st.text_input("Low Cutoff Frequency (Hz)", value="1"),
-                "fc_h": st.text_input("High Cutoff Frequency (Hz)", value="0.5"),
-                "orde_filter": st.number_input("Orde Frequency", max_value=10, min_value=1, value=2),
+    def get_filter_parameters(self):
+        """Gets filter parameters from user input."""
+        filter_param_inputs = {
+            "fc_l": st.text_input("Low Cutoff Frequency (Hz)", value=str(self.filter_params["fc_l"])),
+            "fc_h": st.text_input("High Cutoff Frequency (Hz)", value=str(self.filter_params["fc_h"])),
+            "orde_filter": st.number_input("Filter Order", min_value=1, max_value=10, value=self.filter_params["orde_filter"]),
+        }
+
+        try:
+            self.filter_params = {
+                key: float(value) if key != "orde_filter" else int(value)
+                for key, value in filter_param_inputs.items()
             }
-            try:
-                parsed_param = {
-                    key: float(value) if key != "orde_filter" else int(value) for key, value in filter_param.items()
-                }
-            except ValueError:
-                st.error("Please enter two numeric values separated by a space for each threshold.")
+        except ValueError:
+            st.error("Please enter numeric values for filter parameters.")
+            return None
 
-            amplitude = self.var.dataECG
-            st.write(f"fc_l: {parsed_param['fc_l']}, fc_h: {parsed_param['fc_h']}, orde: {parsed_param['orde_filter']}")
-            # self.applyFilter(filter_type="BPF", data_input=amplitude, absolute=False, fcl=fc_l, fch = fc_h, orde=orde_LPF, frequencySampling=fs)
-            self.filtered_data = self.applyFilter(filter_type="LPF", data_input=amplitude, absolute=False, fcl=parsed_param["fc_l"], fch=parsed_param["fc_h"], orde=parsed_param["orde_filter"], frequencySampling=fs)     
+        st.write(
+            f"fc_l: {self.filter_params['fc_l']}, fc_h: {self.filter_params['fc_h']}, orde: {self.filter_params['orde_filter']}"
+        )
+    
+    def get_thresholds(self):
+        """Gets thresholds for peak detection from user input."""
+        threshold_inputs = {
+            "P": st.text_input("Threshold for P peak detection (min max)", value=self.thresholds["P"]),
+            "Q": st.text_input("Threshold for Q peak detection (min max)", value=self.thresholds["Q"]),
+            "R": st.text_input("Threshold for R peak detection (min max)", value=self.thresholds["R"]),
+            "S": st.text_input("Threshold for S peak detection (min max)", value=self.thresholds["S"]),
+            "T": st.text_input("Threshold for T peak detection (min max)", value=self.thresholds["T"]),
+        }
 
-        if self.var.filtered_data is not None:
-            # Input thresholds for ECG peak detection
-            thresholds = {
-                "P": st.text_input("Threshold for P peak detection (min max)", value="0.11 0.2"),
-                "Q": st.text_input("Threshold for Q peak detection (min max)", value="-0.28 -0.22"),
-                "R": st.text_input("Threshold for R peak detection (min max)", value="1 1.5"),
-                "S": st.text_input("Threshold for S peak detection (min max)", value="-0.9 -0.50"),
-                "T": st.text_input("Threshold for T peak detection (min max)", value="0.23 0.38"),
+        try:
+            self.thresholds = {
+                key: list(map(float, value.split())) for key, value in threshold_inputs.items()
             }
+        except ValueError:
+            st.error("Please enter two numeric values separated by a space for each threshold.")
+            return None      
 
-            try:
-                # Parse thresholds
-                parsed_thresholds = {
-                    key: list(map(float, value.split())) for key, value in thresholds.items()
-                }
-                # Perform ECG segmentation
-                segmentation = segment_ecg(
-                    self.var.filtered_data,
-                    threshold_p=parsed_thresholds["P"],
-                    threshold_q=parsed_thresholds["Q"],
-                    threshold_r=parsed_thresholds["R"],
-                    threshold_s=parsed_thresholds["S"],
-                    threshold_t=parsed_thresholds["T"],
-                )
-            except ValueError:
-                st.error("Please enter two numeric values separated by a space for each threshold.")
+    def segment_ecg_signal(self):
+        """Segments the ECG signal to detect peaks."""
+        if self.var.filtered_data is None:
+            st.error("No filtered data to segment.")
+            return
 
-            import matplotlib.pyplot as plt
-                
-            plt.figure(figsize=(10, 4))
-            plt.plot(self.var.filtered_data)
+        try:
+            self.segmentation = segment_ecg(
+                self.var.filtered_data,
+                threshold_p=self.thresholds["P"],
+                threshold_q=self.thresholds["Q"],
+                threshold_r=self.thresholds["R"],
+                threshold_s=self.thresholds["S"],
+                threshold_t=self.thresholds["T"],
+            )
+        except ValueError:
+            st.error("Error during ECG segmentation. Check threshold values.")
+            self.segmentation = {}
+            return  
 
-            for komponen in segmentation:
-                plt.scatter(segmentation[komponen]['lokasi'], segmentation[komponen]['nilai'], label=komponen)
+    def display_segmentation_results(self, duration):
+        """Displays the ECG segmentation results."""
+        if not self.segmentation:
+            st.warning("No segmentation results to display.")
+            return
 
-            for peak_type, peak_data in segmentation.items():
-                if 'lokasi' in peak_data:
-                    heart_rate = calculate_heart_rate(peak_data['lokasi'], duration)
-                    st.write(f"Signal detected {peak_type} : {heart_rate} in second")
-            # st.write(f"P: {segmentation}, Q: {}, R: {}, S: {}, T: {}")
-            plt.legend()
-            st.pyplot(plt)   
-            # Use st.pyplot to display the plot in Streamlit
-            if 'R' in segmentation and segmentation['R']['lokasi']:
-                heart_rate =calculate_heart_rate(segmentation['R']['lokasi'], duration)
-                st.write(f"Heart Rate: {heart_rate} bpm")
-            else: st.write("no R peaks found in the filtered data.")
+        import matplotlib.pyplot as plt
 
-                
-        else: st.write("Please upload data first on the 'Data' page.")
+        plt.figure(figsize=(10, 4))
+        plt.plot(self.var.filtered_data)
 
+        for Component in self.segmentation:
+            plt.scatter(self.segmentation[Component]["address"], self.segmentation[Component]["value"], label=Component)
+
+        for peak_type, peak_data in self.segmentation.items():
+            if "address" in peak_data:
+                heart_rate = calculate_heart_rate(peak_data["address"], duration)
+                st.write(f"Signal detected {peak_type} : {int(heart_rate)} in minute")
+
+        plt.legend()
+        st.pyplot(plt)
+
+        if "R" in self.segmentation and self.segmentation["R"]["address"]:
+            heart_rate = int(calculate_heart_rate(self.segmentation["R"]["address"], duration))
+            st.write(f"Heart Rate: {heart_rate} bpm")
+            self.var.heart_rate = heart_rate
+        else:
+            st.write("No R peaks found in the filtered data.")
+            self.var.heart_rate = None
 
     # load section
     def loadDisplayData(self, file_path=None, data_title="Raw ECG"):
@@ -165,10 +227,10 @@ class Logic:
             if filter_type == "LPF":
                 b, a = LPF(fcl, orde, frequencySampling)
                 filtered_data = forward_backward_filter(b, a, data_input)
-                plotLine("Filtered Data(Lowpass)", filtered_data)
+                plotLine("Filtered Data", filtered_data)
                 if absolute:
                     hasil_data = DFT(filtered_data)
-                    plotDFT("Filtered Data(Lowpass)", hasil_data, absolute=True)
+                    plotDFT("Filtered Data", hasil_data, absolute=True)
 
             elif filter_type == "HPF":
                 b, a = HPF(fch, orde, frequencySampling)
