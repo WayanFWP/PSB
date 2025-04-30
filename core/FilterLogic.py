@@ -174,7 +174,7 @@ def BPF(fc1, fc2, order, fs):
 
 def forward_filter_IIR(b, a, x):
     """
-    Melakukan forward filtering untuk IIR (kasus filter digital)
+    forward filtering for IIR
     """
     y = np.zeros_like(x)
     # Input filtering IIR
@@ -192,13 +192,9 @@ def forward_filter_IIR(b, a, x):
 
 def backward_filter_IIR(b, a, x):
     """
-    Melakukan backward filtering untuk IIR
-    Args:
-        b (np.ndarray): Koefisien feedforward
-        a (np.ndarray): Koefisien feedback
-        x (np.ndarray): Input signal
+    backward filtering for IIR
     Returns:
-        np.ndarray: Output dari filter
+        np.ndarray: Output filter
     """
     y = np.zeros_like(x)
     # Backward filtering IIR
@@ -230,6 +226,34 @@ def forward_backward_filter(b, a, x):
     
     y_forward = forward_filter_IIR(b, a, x)
     y = backward_filter_IIR(b, a, y_forward)
+    return y
+
+def moving_average(data, window_size):
+    N = window_size
+    smoothed_data = np.zeros(len(data))  
+    for i in range(len(data)):
+        sum_window = 0
+        for k in range(N):  
+            if i - k >= 0:  
+                sum_window += data[i - k]
+        smoothed_data[i] = sum_window / N 
+    return smoothed_data
+
+def square_wave_signal(data):
+    threshold = np.max(data)*0.7  # Dynamic threshold based on mean and standard deviation
+    square_wave = np.zeros_like(data)
+    for i in range(len(data)):
+        if data[i] > threshold:
+            square_wave[i] = 1
+    return square_wave
+
+def backward_filter(h, x):
+    y = np.zeros_like(x)
+    for n in range(len(x)):
+        for i in range(len(h)):
+            if n + i < len(x):
+                y[n] += h[i] * x[n + i]
+    
     return y
 
 def segment_ecg(data, threshold_p=[15, 21], threshold_q=[-35, -25], threshold_r=[115, 140], threshold_s=[-85, -60], threshold_t=[32, 43], interval=80):

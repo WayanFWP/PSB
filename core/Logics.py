@@ -8,8 +8,8 @@ from traceback import print_exc
 class Logic:
     def __init__(self, variable):
         self.var = variable
-        # self.file_path = "data/samples_10sec.csv"
-        self.file_path = "data/samples_1minute.csv"
+        self.file_path = "data/samples_10sec.csv"
+        # self.file_path = "data/samples_1minute.csv"
         self.filter_params = DEFAULT_FILTER_PARAMS
         self.thresholds = DEFAULT_THRESHOLDS
         self.segmentation = {}
@@ -17,20 +17,26 @@ class Logic:
     # data flow section
     def process_data(self):
         try:
-            # step 1
-            if self.var.dataECG is None:
-                file_path = st.sidebar.file_uploader("Upload CSV file", type=["csv", "txt"])
+            # Check if the user has uploaded a file
+            file_path = st.sidebar.file_uploader("Upload CSV file", type=["csv", "txt"])
+            if file_path is not None:
+            # Use the uploaded file
                 self.loadDisplayData(file_path)
+            else:
+            # Use the default file path if no file is uploaded
+                self.loadDisplayData(self.file_path)
 
-            fs = self.samplingFrequency()
-            duration = self.calculate_duration()
+            if self.var.dataECG is not None:
+                fs = 2 * np.max(np.abs(self.var.dataECG))
+                duration = len(self.var.dataECG) * DEFAULT_SAMPLE_INTERVAL
+
             if fs is None or duration is None:
                 return
             st.write(f"fs: {fs}, Duration: {duration:.2f} seconds, data: {len(self.var.dataECG)}")
 
             # Perform DFT on the raw ECG data
             st.write("Performing DFT on the data...")
-            # loadDFT(self.var.dataECG, absolute=True)
+            self.loadDFT(self.var.dataECG, absolute=True)
 
             if self.var.dataECG is not None:
                 st.subheader("Plot filtered data...")
@@ -46,8 +52,23 @@ class Logic:
                         orde=self.filter_params["orde_filter"],
                         frequencySampling=fs,
                     )
+                    # self.filtered_data = self.applyFilter(
+                    #     filter_type="HPF",
+                    #     data_input=self.var.filtered_data,
+                    #     absolute=False,
+                    #     fcl=self.filter_params["fc_l"],
+                    #     fch=self.filter_params["fc_h"],
+                    #     orde=self.filter_params["orde_filter"],
+                    #     frequencySampling=fs,
+                    # )
+
+                    st.write("Filtered data loaded successfully. Perform DFT on the filtered data.")
+                    self.loadDFT(self.var.filtered_data, absolute=True)
 
             if self.var.filtered_data is not None:
+                st.write("Performing MAV")
+                self.applyMAV(self.var.filtered_data, window_size=30, frequencySampling=fs)
+
                 st.subheader("Detecting ECG peaks...")
                 # Input thresholds for ECG peak detection
                 self.get_thresholds()
@@ -57,6 +78,7 @@ class Logic:
             else:
                 st.warning("Please upload data first on the 'Data' page.")
         except Exception as e:
+            print_exc()
             st.error(f"An error occurred: {e}")
 
 
@@ -66,18 +88,12 @@ class Logic:
             return None
         return 2 * np.max(np.abs(self.var.dataECG))
 
-    def calculate_duration(self):
-        if self.var.dataECG is None:
-            st.warning("No data to process.")
-            return None
-        return len(self.var.dataECG) * DEFAULT_SAMPLE_INTERVAL
-
     def get_filter_parameters(self):
         """Gets filter parameters from user input."""
         filter_param_inputs = {
-            "fc_l": st.text_input("Low Cutoff Frequency (Hz)", value=str(self.filter_params["fc_l"])),
-            "fc_h": st.text_input("High Cutoff Frequency (Hz)", value=str(self.filter_params["fc_h"])),
-            "orde_filter": st.number_input("Filter Order", min_value=1, max_value=10, value=self.filter_params["orde_filter"]),
+            "fc_l": st.text_input("Low Cutoff Frequency (Hz)", value=150),
+            "fc_h": st.text_input("High Cutoff Frequency (Hz)", value=0.5),
+            "orde_filter": st.number_input("Filter Order", min_value=1, max_value=10, value=2),
         }
 
         try:
@@ -96,11 +112,11 @@ class Logic:
     def get_thresholds(self):
         """Gets thresholds for peak detection from user input."""
         threshold_inputs = {
-            "P": st.text_input("Threshold for P peak detection (min max)", value=self.thresholds["P"]),
-            "Q": st.text_input("Threshold for Q peak detection (min max)", value=self.thresholds["Q"]),
-            "R": st.text_input("Threshold for R peak detection (min max)", value=self.thresholds["R"]),
-            "S": st.text_input("Threshold for S peak detection (min max)", value=self.thresholds["S"]),
-            "T": st.text_input("Threshold for T peak detection (min max)", value=self.thresholds["T"]),
+            "P": st.text_input("Threshold for P peak detection (min max)", value="15 21"),
+            "Q": st.text_input("Threshold for Q peak detection (min max)", value="-35 -25"),
+            "R": st.text_input("Threshold for R peak detection (min max)", value="115 140"),
+            "S": st.text_input("Threshold for S peak detection (min max)", value="-85 -60"),
+            "T": st.text_input("Threshold for T peak detection (min max)", value="32 43"),
         }
 
         try:
@@ -241,6 +257,9 @@ class Logic:
                 b, a = BPF(fcl, fch, orde, frequencySampling)
                 filtered_data = forward_backward_filter(b, a, data_input)
                 plotLine("Filtered Data(Bandpass)", filtered_data)
+                if absolute:
+                    hasil_data = DFT(filtered_data)
+                    plotDFT("Filtered Data", hasil_data, absolute=True)
 
             elif filter_type == "BSF":
                 b, a = BSF(fcl, fch, orde, frequencySampling)
@@ -254,3 +273,19 @@ class Logic:
             print_exc()
             st.error(f"Error during {filter_type}: {e}")
             self.var.filtered_data = None
+
+    def applyMAV(self, data_input=None, window_size=1000, frequencySampling=None):
+        if data_input is None:
+            st.warning("No data to process.")
+            return
+        
+        data_input = np.abs(data_input)
+
+        try:
+            mav = moving_average(data_input, window_size)
+            plotLine("MAV Result", mav)
+
+            squared_wave = square_wave_signal(data_input)
+            plotLine("Squared Wave", squared_wave)
+        except Exception as e:
+            st.error(f"Error during MAV calculation: {e}")

@@ -1,7 +1,7 @@
 # Default filter parameters
 DEFAULT_FILTER_PARAMS = {
-    "fc_l": 100.0,
-    "fc_h": 0.5,
+    "fc_l": 150.0,
+    "fc_h": 5,
     "orde_filter": 2,
 }
 
@@ -13,7 +13,7 @@ DEFAULT_FILTER_PARAMS = {
 #     "S": "-0.9 -0.50",
 #     "T": "0.23 0.38",
 # }
-# Default thresholds for peak detection with sample 10sec 100
+# # Default thresholds for peak detection with sample 10sec 150
 DEFAULT_THRESHOLDS = {
     "P": "15 21",
     "Q": "-35 -25",
@@ -21,13 +21,13 @@ DEFAULT_THRESHOLDS = {
     "S": "-85 -60",
     "T": "32 43",
 }
-# Default thresholds for peak detection with sample 10sec
-DEFAULT_THRESHOLDS = {
-    "P": "5 9",
-    "Q": "-35 -25",
-    "R": "38 45",
-    "S": "-85 -60",
-    "T": "15 18",
-}
+# Default thresholds for peak detection with sample 10sec 100hz
+# DEFAULT_THRESHOLDS = {
+#     "P": "5 9",
+#     "Q": "-35 -25",
+#     "R": "38 45",
+#     "S": "-85 -60",
+#     "T": "15 18",
+# }
 
 DEFAULT_SAMPLE_INTERVAL = 0.01 #seconds
