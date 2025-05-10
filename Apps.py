@@ -17,8 +17,8 @@ class App:
 
     def sidebar(self):
         st.sidebar.title("Navigation")
-        self.page = st.sidebar.radio("Select a page:", ["Home", "Flow_data"])
-        # self.page = st.sidebar.radio("Select a page:", ["Flow_data"])
+        # self.page = st.sidebar.radio("Select a page:", ["Home", "Flow_data"])
+        self.page = st.sidebar.radio("Select a page:", ["Flow_data"])
         if self.page == "Home":
             st.sidebar.info("Welcome to the ECG Signal Processing App!")        
         

@@ -1,4 +1,5 @@
 import numpy as np
+import streamlit as st
 
 def DFT(x):
     """
@@ -10,13 +11,10 @@ def DFT(x):
     """
     x = np.asarray(x, dtype=np.complex128)
     N = x.shape[0]
-    X = np.zeros(N, dtype=np.complex128)
-
-    for k in range(N):
-        for n in range(N):
-            angle = -2j * np.pi * k * n / N
-            X[k] += x[n] * np.exp(angle)
-    return X
+    n = np.arange(N)
+    k = n.reshape((N, 1))
+    M = np.exp(-2j * np.pi * k * n / N)
+    return np.dot(M, x)
 
 def IDFT(X):
     """
@@ -84,7 +82,6 @@ def LPF(fc, order, fs):
 def HPF(fc, order, fs):
     """
     Design a Butterworth High-Pass Filter (HPF) using bilinear transform.
-    
     Args:
         fc (float): Cutoff frequency (Hz).
         order (int): Filter order.
@@ -113,64 +110,30 @@ def HPF(fc, order, fs):
     # Bilinear transform for each pole (HPF version)
     for p in poles:
         # Transform analog pole to digital (HPF)
-        zd = (2/T - p) / (2/T + p)
+        zd = (2/T + p) / (2/T - p)
         a = np.convolve(a, [1, -zd.real])
-        b = np.convolve(b, [1, -1])  # HPF characteristic
+        b = np.convolve(b, [1, -1])  # Note the [1, -1] here for HPF characteristic
     
     # Normalize gain at Nyquist (ω=π) to 1
     # For HPF, we evaluate at z=-1 (ω=π)
-    gain = np.sum(b * (-1)**np.arange(len(b))) / np.sum(a * (-1)**np.arange(len(a)))
+    gain = np.sum(b * np.power(-1, np.arange(len(b)))) / np.sum(a * np.power(-1, np.arange(len(a))))
     if np.isclose(gain, 0) or np.isinf(gain) or np.isnan(gain):
         raise ValueError("Invalid gain calculated for HPF. Check filter parameters.")
     b = b / gain
     
     return b.real, a.real
+    
 
+def BPF(signal, fc1, fc2, order, fs):
+    orde = int(order / 2)
 
-def BPF(fc1, fc2, order, fs):
-    """
-    Design a Butterworth Band-Pass Filter (BPF) using bilinear transform.
-    Args:
-        fc1 (float): Lower cutoff frequency (Hz).
-        fc2 (float): Upper cutoff frequency (Hz).
-        order (int): Filter order (must be even).
-        fs (float): Sampling frequency (Hz).
-    Returns:
-        b (np.ndarray): Feedforward coefficients.
-        a (np.ndarray): Feedback coefficients.
-    """
-    if order % 2 != 0:
-        raise ValueError("Order of BPF must be even.")
+    b_lpf, a_lpf = LPF(fc1, orde, fs)
+    filtered_lpf = forward_backward_filter(b_lpf, a_lpf, signal)
 
-    W1 = 2 * np.pi * fc1
-    W2 = 2 * np.pi * fc2
-    T = 1 / fs
+    b_hpf, a_hpf = HPF(fc2, orde, fs)
+    filtered_data = forward_backward_filter(b_hpf, a_hpf, filtered_lpf)
 
-    W1p = 2 / T * np.tan(W1 * T / 2)
-    W2p = 2 / T * np.tan(W2 * T / 2)
-
-    W0 = np.sqrt(W1p * W2p)  # Center frequency
-    Bw = W2p - W1p           # Bandwidth
-
-    poles = []
-    for k in range(order):
-        theta = np.pi * (2 * k + 1) / (2 * order)
-        pole = Bw/2 * (-np.sin(theta) + 1j * np.cos(theta))
-        poles.append(pole)
-
-    a = np.array([1.0])
-    b = np.array([1.0])
-    for p in poles:
-        s_pole = p + W0**2 / p  # Bandpass transformation
-        k = (2 / T + s_pole) / (2 / T - s_pole)
-        a = np.convolve(a, [1, -k.real])
-        b = np.convolve(b, [1, 1])
-
-    gain = np.sqrt(np.sum(b**2)) / np.sqrt(np.sum(a**2))
-    if gain == 0 or np.isinf(gain) or np.isnan(gain):  # Check for invalid gain
-        raise ValueError("Invalid gain calculated for BPF. Check filter parameters.")
-    b = b / gain
-    return b.real, a.real
+    return filtered_data
 
 def forward_filter_IIR(b, a, x):
     """
@@ -239,104 +202,93 @@ def moving_average(data, window_size):
         smoothed_data[i] = sum_window / N 
     return smoothed_data
 
-def square_wave_signal(data):
-    threshold = np.max(data)*0.7  # Dynamic threshold based on mean and standard deviation
-    square_wave = np.zeros_like(data)
-    for i in range(len(data)):
-        if data[i] > threshold:
-            square_wave[i] = 1
-    return square_wave
-
-def backward_filter(h, x):
-    y = np.zeros_like(x)
-    for n in range(len(x)):
-        for i in range(len(h)):
-            if n + i < len(x):
-                y[n] += h[i] * x[n + i]
+def detect_r_peaks(signal, threshold_percentage=0.85, window_size=10):
+    """
+    Mendeteksi puncak R dalam sinyal ECG menggunakan threshold adaptif.
     
-    return y
-
-def segment_ecg(data, threshold_p=[15, 21], threshold_q=[-35, -25], threshold_r=[115, 140], threshold_s=[-85, -60], threshold_t=[32, 43], interval=80):
-    """
-    Segmentasi sinyal EKG berdasarkan threshold value P, Q, R, S, dan T dengan interval waktu.
-    """
-    segmentation = {
-        'P': {'address': [], 'value': []},
-        'Q': {'address': [], 'value': []},
-        'R': {'address': [], 'value': []},
-        'S': {'address': [], 'value': []},
-        'T': {'address': [], 'value': []}
-    }
-
-    last_detection = {
-        'P': -interval,
-        'Q': -interval,
-        'R': -interval,
-        'S': -interval,
-        'T': -interval
-    }
-
-    for i, value in enumerate(data):
-        # Deteksi gelombang P
-        if threshold_p[0] <= value <= threshold_p[1] and i - last_detection['P'] > interval:
-            segmentation['P']['address'].append(i)
-            segmentation['P']['value'].append(value)
-            last_detection['P'] = i
-            print(f"P terdeteksi pada indeks {i}, value {value}")
-
-        # Deteksi gelombang Q
-        if threshold_q[0] <= value <= threshold_q[1] and i - last_detection['Q'] > interval:
-            segmentation['Q']['address'].append(i)
-            segmentation['Q']['value'].append(value)
-            last_detection['Q'] = i
-            print(f"Q terdeteksi pada indeks {i}, value {value}")
-
-        # Deteksi gelombang R
-        if threshold_r[0] <= value <= threshold_r[1] and i - last_detection['R'] > interval:
-            segmentation['R']['address'].append(i)
-            segmentation['R']['value'].append(value)
-            last_detection['R'] = i
-            print(f"R terdeteksi pada indeks {i}, value {value}")
-
-        # Deteksi gelombang S
-        if threshold_s[0] <= value <= threshold_s[1] and i - last_detection['S'] > interval:
-            segmentation['S']['address'].append(i)
-            segmentation['S']['value'].append(value)
-            last_detection['S'] = i
-            print(f"S terdeteksi pada indeks {i}, value {value}")
-
-        # Deteksi gelombang T
-        if threshold_t[0] <= value <= threshold_t[1] and i - last_detection['T'] > interval:
-            segmentation['T']['address'].append(i)
-            segmentation['T']['value'].append(value)
-            last_detection['T'] = i
-            print(f"T terdeteksi pada indeks {i}, value {value}")
-        # else:
-        #     print(f"Tidak ada gelombang terdeteksi pada indeks {i}, value {value}")
-
-    return segmentation
-
-def calculate_heart_rate(r_locations, duration):
-    """
-    Menghitung detak jantung (HR) berdasarkan address puncak gelombang R.
-
     Args:
-        r_locations (list): List yang berisi indeks address puncak gelombang R.
-        fs (float): Sampling frequency (Hz).
-        duration (float): Durasi sinyal dalam detik.
-
+        signal: Sinyal ECG (biasanya hasil filter BPF atau MAV)
+        threshold_percentage: Persentase dari nilai maksimum untuk threshold (0-1)
+        window_size: Ukuran jendela untuk moving average (opsional)
+    
     Returns:
-        float: Detak jantung dalam BPM (Beats Per Minute).
-               Mengembalikan 0 jika tidak ada gelombang R yang terdeteksi.
+        Tuple berisi (indeks puncak R, nilai threshold)
     """
-    if not r_locations:
-        return 0  # Tidak ada gelombang R yang terdeteksi
+    if signal is None or len(signal) == 0:
+        return [], 0
+    
+    # Ambil nilai absolut sinyal
+    abs_signal = np.abs(signal)
+    
+    # Hitung threshold adaptif
+    threshold = np.mean(abs_signal) * threshold_percentage
+    
+    # Temukan puncak R yang melebihi threshold
+    r_peaks = []
+    i = 1
+    while i < len(signal) - 1:
+        # Jika nilai saat ini melebihi threshold dan lebih besar dari tetangganya (local maximum)
+        if abs_signal[i] > threshold and abs_signal[i] > abs_signal[i-1] and abs_signal[i] > abs_signal[i+1]:
+            # Tambahkan indeks ke daftar puncak R
+            r_peaks.append(i)
+            
+            # Lompati beberapa sampel untuk menghindari deteksi ganda pada satu kompleks QRS
+            refractory_period = int(0.2 * 100)  # 200ms refractory period assuming 100Hz
+            i += max(1, refractory_period)
+        else:
+            i += 1
+    
+    return r_peaks, threshold
 
-    # Hitung jumlah total gelombang R
-    num_r_peaks = len(r_locations)
-    # print("Jumlah gelombang R terdeteksi:", num_r_peaks)
-
-    # Hitung detak jantung dalam BPM
-    hr = (num_r_peaks / duration) * 60
-
-    return hr
+def segment_qrs(signal, r_peaks, window_before=50, window_after=50):
+    """
+    Segmentasi kompleks QRS berdasarkan puncak R yang terdeteksi.
+    
+    Args:
+        signal: Sinyal ECG
+        r_peaks: Indeks puncak R
+        window_before: Jumlah sampel sebelum puncak R untuk segmentasi
+        window_after: Jumlah sampel setelah puncak R untuk segmentasi
+    
+    Returns:
+        Dictionary dengan key 'qrs_segments', 'q_points', 's_points'
+    """
+    if not r_peaks:
+        return {"qrs_segments": [], "q_points": [], "s_points": []}
+    
+    qrs_segments = []
+    q_points = []
+    s_points = []
+    
+    for peak in r_peaks:
+        # Definisikan batas jendela
+        start = max(0, peak - window_before)
+        end = min(len(signal), peak + window_after)
+        
+        # Ekstrak segmen QRS
+        segment = signal[start:end]
+        qrs_segments.append(segment)
+        
+        # Temukan titik Q (minimum sebelum puncak R)
+        q_search_start = max(0, peak - window_before)
+        q_search_end = peak
+        if q_search_end > q_search_start:
+            q_idx = q_search_start + np.argmin(signal[q_search_start:q_search_end])
+            q_points.append(q_idx)
+        else:
+            q_points.append(peak)
+        
+        # Temukan titik S (minimum setelah puncak R)
+        s_search_start = peak
+        s_search_end = min(len(signal), peak + window_after)
+        if s_search_end > s_search_start:
+            s_idx = s_search_start + np.argmin(signal[s_search_start:s_search_end])
+            s_points.append(s_idx)
+        else:
+            s_points.append(peak)
+    
+    return {
+        "qrs_segments": qrs_segments,
+        "q_points": q_points,
+        "s_points": s_points
+    }
