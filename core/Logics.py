@@ -26,23 +26,20 @@ class Logic:
                 self.loadDisplayData(self.file_path) # Use the default file path if no file is uploaded
 
 
+            show_dft_comparison = st.sidebar.checkbox("Show DFT", value=False)
             if self.var.dataECG is not None:
                 fs = 2 * np.max(np.abs(self.var.dataECG))
                 duration = len(self.var.dataECG) * DEFAULT_SAMPLE_INTERVAL
 
-            if fs is None or duration is None:
-                return
-
+            # Display the data
+            st.subheader("Plot Raw data...")
             self.merged_data_plot("Raw ECG",["Raw ECG"])
             st.write(f"fs: {fs}, Duration: {duration:.2f} seconds, data: {len(self.var.dataECG)}")
 
-            # Perform DFT on the raw ECG data
-            st.write("Performing DFT on the data...")
-            # self.loadDFT(self.var.dataECG, absolute=True)
             # self.dft_plot("DFT Raw", ["Raw ECG"], absolute=True, fs=fs)
-
             if self.var.dataECG is not None:
                 st.subheader("Plot filtered data...")
+                # Apply filters threshold
                 fcl = np.max(np.abs(self.var.dataECG)) * 0.45
 
                 self.get_filter_parameters(fcl, 0, 2)
@@ -57,9 +54,11 @@ class Logic:
                         frequencySampling=fs
                     )
                 self.dataSignal["LPF"] = self.filtered_data
-                self.merged_data_plot()
-                # self.dft_plot("DFT Raw vs LPF", ["Raw ECG", "LPF"], absolute=True, fs=fs)
-
+                self.merged_data_plot("After Prefiltering")
+                if show_dft_comparison:
+                    self.dft_plot("DFT Raw vs LPF", ["Raw ECG", "LPF"], absolute=True, fs=fs)
+                
+                # Apply high-pass filter threshold 
                 fcl_bpf = np.max(np.abs(self.var.filtered_data)) * 0.65
                 fch_bpf = np.max(np.abs(self.var.filtered_data)) * 0.3
 
@@ -76,17 +75,77 @@ class Logic:
                     )
                 self.dataSignal["BPF"] = self.filtered_data
                 self.merged_data_plot("BPF",["BPF"])
-                # self.dft_plot("DFT BPF", ["BPF"], absolute=True, fs=fs)
-
+                if show_dft_comparison:
+                    self.dft_plot("DFT BPF", ["BPF"], absolute=True, fs=fs)
 
             if self.var.filtered_data is not None:
-                # st.write("Performing MAV")
-                self.applyMAV(self.var.filtered_data, window_size=10)
+                st.subheader("Performing Heart beat calculation...")
+                mav, threshold = self.applyMAV(self.var.filtered_data, window_size=10)
+                                
+                r_peaks = []
+                r_values = []
+                
+                i = 0
+                while i < len(mav) - 1:
+                    # Check if current point is above threshold and is a local maximum
+                    if mav[i] > threshold and i > 0 and i < len(mav) - 1:
+                        if mav[i] > mav[i-1] and mav[i] > mav[i+1]:
+                            r_peaks.append(i)
+                            r_values.append(mav[i])
 
-                st.subheader("ECG Segmentation")
+                            i += 80 # interval detecting between R-peaks
+                            continue
+                    i += 1
+                
+                if r_peaks:
+                    intervals = np.diff(r_peaks) * DEFAULT_SAMPLE_INTERVAL  
+                    avg_interval = np.mean(intervals) if len(intervals) > 0 else 0
+                    heart_rate = 60 / avg_interval if avg_interval > 0 else 0
+                    self.var.heart_rate = heart_rate
 
+                    st.write(f"R-peaks detected: {len(r_peaks)}")
+                    st.write(f"Average interval: {avg_interval:.3f} seconds")
+                    st.write(f"Heart Rate: {heart_rate:.2f} BPM")
+
+                    mav_df = pd.DataFrame({
+                        "Sample": np.arange(len(mav)),
+                        "Value": mav,
+                    })
+
+                    peak_df = pd.DataFrame({
+                        "Sample": r_peaks,
+                        "Value": r_values,
+                    })
+
+                    base_chart = alt.Chart(mav_df).mark_line().encode(
+                        x=alt.X('Sample:Q', title='Sample'),
+                        y=alt.Y('Value:Q', title='Amplitude')
+                    )
+
+                    # Use the static threshold for visualization
+                    threshold_df = pd.DataFrame({'threshold': [threshold] * len(mav_df)})
+                    threshold_line = alt.Chart(threshold_df).mark_rule(color='red', strokeDash=[3, 3]).encode(
+                        y=alt.Y('threshold:Q'), 
+                        tooltip=alt.value(f"Threshold: {threshold:.2f}")
+                    )
+
+                    peak_chart = alt.Chart(peak_df).mark_circle(color='red', size=100).encode(
+                        x=alt.X('Sample:Q', title='Sample'),
+                        y=alt.Y('Value:Q')
+                    )
+
+                    chart = (base_chart + threshold_line + peak_chart).properties(
+                        title="MAV with R-peaks",
+                        width=800,
+                        height=400
+                    ).interactive()
+                    
+                    st.altair_chart(chart, use_container_width=True)
+                else:
+                    st.warning("No R-peaks detected. Try adjusting the threshold or window size.")
             else:
-                st.warning("Please upload data first on the 'Data' page.")
+                st.warning("Please upload data first on the page.")
+
         except Exception as e:
             print_exc()
             st.error(f"An error occurred: {e}")
@@ -124,8 +183,6 @@ class Logic:
             st.error("Please enter valid numeric values: two floats for cutoff frequencies and an integer for order")
             return None
     
-    def get_threshold(self, data=None):
-        return np.abs(data) * 0.75
 
     def applyFilter(self, filter_type="LPF", data_input=None, plot=False,fcl=None, fch=None, orde=None, frequencySampling=None):
         if data_input is None:
@@ -146,6 +203,7 @@ class Logic:
         if frequencySampling <= 0:
             st.error("Sampling frequency must be greater than 0.")
             return
+        
         try:
             if filter_type == "LPF":
                 b, a = LPF(fcl, orde, frequencySampling)
@@ -177,24 +235,31 @@ class Logic:
             st.error(f"Error during {filter_type}: {e}")
             self.var.filtered_data = None
 
-    def applyMAV(self, data_input=None, window_size=10):
+    def applyMAV(self, data_input=None, window_size=30):
         if data_input is None:
             st.warning("No data to process.")
             return
         
+        self.filter_result = {}
+        
         data_input = np.abs(data_input)
-        plotLine("absolute", data_input)
+        self.filter_result["Abs"] = data_input
 
         try:
             mav = moving_average(data_input, window_size)
-            plotLine("MAV Result", mav)
-            threshold = np.mean(mav) * 0.85
-            st.write(f"Threshold: {threshold:.2f}")
+            self.filter_result["MAV"] = mav
+            self.merged_data_plot("MAV", ["MAV"])
 
+            st.write(f"Mean Absolute Value (MAV) calculated with window size {window_size}.")
+            threshold = (np.max(mav) - np.mean(mav)) * 0.25
+            st.write(f"Threshold: {threshold:.5f}")
+
+            return mav , threshold
+            
         except Exception as e:
             st.error(f"Error during MAV calculation: {e}")
 
-    # load section
+    # ========= load section =========
     def loadDisplayData(self, file_path=None, data_title="Raw ECG", data_log = False):
         # Read the CSV file and extract the ECG column
         if file_path is not None:
@@ -232,7 +297,7 @@ class Logic:
                 if filter_name in self.filter_result:
                     data_to_plot[filter_name] = self.filter_result[filter_name]
                 else:
-                    st.warning(f"Filter '{filter_name}' tidak ditemukan.")
+                    st.warning(f"Filter '{filter_name}' Not Found.")
         
         # Plot the data using the plotData function
         if data_to_plot:
@@ -270,10 +335,10 @@ class Logic:
                 # Store the DFT result in the dictionary
                 dft_results[filter_name] = dft_data
             else:
-                st.warning(f"Filter '{filter_name}' tidak ditemukan.")
+                st.warning(f"Filter '{filter_name}' Not Found (404).")
 
         # Plot the DFT results using the plotDFTs function        
         if dft_results:
             plotDFTs(f"{title} - DFT", dft_results, fs, absolute)
         else:
-            st.warning("Tidak ada data yang dipilih untuk dibandingkan.")
+            st.warning("There is no data to compare.")
