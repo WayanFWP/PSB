@@ -202,93 +202,98 @@ def moving_average(data, window_size):
         smoothed_data[i] = sum_window / N 
     return smoothed_data
 
-def detect_r_peaks(signal, threshold_percentage=0.85, window_size=10):
-    """
-    Mendeteksi puncak R dalam sinyal ECG menggunakan threshold adaptif.
-    
-    Args:
-        signal: Sinyal ECG (biasanya hasil filter BPF atau MAV)
-        threshold_percentage: Persentase dari nilai maksimum untuk threshold (0-1)
-        window_size: Ukuran jendela untuk moving average (opsional)
-    
-    Returns:
-        Tuple berisi (indeks puncak R, nilai threshold)
-    """
-    if signal is None or len(signal) == 0:
-        return [], 0
-    
-    # Ambil nilai absolut sinyal
-    abs_signal = np.abs(signal)
-    
-    # Hitung threshold adaptif
-    threshold = np.mean(abs_signal) * threshold_percentage
-    
-    # Temukan puncak R yang melebihi threshold
-    r_peaks = []
-    i = 1
-    while i < len(signal) - 1:
-        # Jika nilai saat ini melebihi threshold dan lebih besar dari tetangganya (local maximum)
-        if abs_signal[i] > threshold and abs_signal[i] > abs_signal[i-1] and abs_signal[i] > abs_signal[i+1]:
-            # Tambahkan indeks ke daftar puncak R
-            r_peaks.append(i)
-            
-            # Lompati beberapa sampel untuk menghindari deteksi ganda pada satu kompleks QRS
-            refractory_period = int(0.2 * 100)  # 200ms refractory period assuming 100Hz
-            i += max(1, refractory_period)
-        else:
-            i += 1
-    
-    return r_peaks, threshold
 
-def segment_qrs(signal, r_peaks, window_before=50, window_after=50):
+def process_heart_rate(mav, config):
     """
-    Segmentasi kompleks QRS berdasarkan puncak R yang terdeteksi.
+    Process ECG signal to detect heart rate
     
-    Args:
-        signal: Sinyal ECG
-        r_peaks: Indeks puncak R
-        window_before: Jumlah sampel sebelum puncak R untuk segmentasi
-        window_after: Jumlah sampel setelah puncak R untuk segmentasi
+    Parameters:
+    -----------
+    mav    : ndarray
+        The Moving average values of the ECG signal
+    config : dict
+        Configuration parameters for heart rate detection
+    """
     
+    # Adjust threshold based on configuration
+    threshold = config["threshold"]
+    
+    # Find R-peaks
+    r_peaks, r_values = detect_r_peaks(
+        mav, 
+        threshold, 
+        config["interval"]
+    )
+    
+    # Calculate and display heart rate metrics
+    return calculate_and_display_heart_rate(r_peaks, r_values, mav, threshold)
+
+def detect_r_peaks(signal, threshold, peak_to_peak):
+    """
+    Detect R-peaks in the signal above the threshold
+    
+    Parameters:
+    -----------
+    signal : ndarray
+        The processed signal to detect peaks from
+    threshold : float
+        The amplitude threshold for peak detection
+    peak_to_peak : int
+        Minimum number of samples between peaks
+        
     Returns:
-        Dictionary dengan key 'qrs_segments', 'q_points', 's_points'
+    --------
+    tuple: (r_peaks, r_values)
+        Lists of peak positions and their values
+    """
+    r_peaks = []
+    r_values = []
+    
+    i = 0
+    while i < len(signal) - 1:
+        # Check if current point is above threshold and is a local maximum
+        if signal[i] > threshold and i > 0 and i < len(signal) - 1:
+            if signal[i] > signal[i-1] and signal[i] > signal[i+1]:
+                r_peaks.append(i)
+                r_values.append(signal[i])
+                i += peak_to_peak  # Skip forward to look for next peak
+                continue
+        i += 1
+        
+    return r_peaks, r_values
+
+def calculate_and_display_heart_rate(r_peaks, r_values, mav, threshold):
+    """
+    Calculate and display heart rate metrics and visualization
+    
+    Parameters:
+    -----------
+    r_peaks : list
+        Indices of detected R-peaks
+    r_values : list
+        Amplitude values at R-peaks
+    mav : ndarray
+        Moving average values
+    threshold : float
+        Threshold used for peak detection
     """
     if not r_peaks:
-        return {"qrs_segments": [], "q_points": [], "s_points": []}
-    
-    qrs_segments = []
-    q_points = []
-    s_points = []
-    
-    for peak in r_peaks:
-        # Definisikan batas jendela
-        start = max(0, peak - window_before)
-        end = min(len(signal), peak + window_after)
+        st.warning("No R-peaks detected. Try adjusting the configuration parameters.")
+        return
         
-        # Ekstrak segmen QRS
-        segment = signal[start:end]
-        qrs_segments.append(segment)
-        
-        # Temukan titik Q (minimum sebelum puncak R)
-        q_search_start = max(0, peak - window_before)
-        q_search_end = peak
-        if q_search_end > q_search_start:
-            q_idx = q_search_start + np.argmin(signal[q_search_start:q_search_end])
-            q_points.append(q_idx)
-        else:
-            q_points.append(peak)
-        
-        # Temukan titik S (minimum setelah puncak R)
-        s_search_start = peak
-        s_search_end = min(len(signal), peak + window_after)
-        if s_search_end > s_search_start:
-            s_idx = s_search_start + np.argmin(signal[s_search_start:s_search_end])
-            s_points.append(s_idx)
-        else:
-            s_points.append(peak)
+    intervals = np.diff(r_peaks) * 0.01  
+    avg_interval = np.mean(intervals) if len(intervals) > 0 else 0
+    heart_rate = 60 / avg_interval if avg_interval > 0 else 0
+
+    # Display metrics
+    metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+    with metrics_col1:
+        st.metric("R-peaks detected", f"{len(r_peaks)}")
+    with metrics_col2:
+        st.metric("Average interval", f"{avg_interval:.3f} s")
+    with metrics_col3:
+        st.metric("Heart Rate", f"{heart_rate:.1f} BPM")
+
+    # Create visualization data
+    return mav, r_peaks, r_values, threshold, heart_rate
     
-    return {
-        "qrs_segments": qrs_segments,
-        "q_points": q_points,
-        "s_points": s_points
-    }

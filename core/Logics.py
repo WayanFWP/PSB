@@ -80,69 +80,22 @@ class Logic:
 
             if self.var.filtered_data is not None:
                 st.subheader("Performing Heart beat calculation...")
-                mav, threshold = self.applyMAV(self.var.filtered_data, window_size=10)
-                                
-                r_peaks = []
-                r_values = []
+                # Calculate MAV
+                mav, threshold = self.applyMAV(
+                    self.var.filtered_data, 
+                    window_size=10
+                )
+
+                config = {
+                    "threshold": threshold,
+                    "interval": 80,
+                    "sample_interval": DEFAULT_SAMPLE_INTERVAL
+                }
                 
-                i = 0
-                while i < len(mav) - 1:
-                    # Check if current point is above threshold and is a local maximum
-                    if mav[i] > threshold and i > 0 and i < len(mav) - 1:
-                        if mav[i] > mav[i-1] and mav[i] > mav[i+1]:
-                            r_peaks.append(i)
-                            r_values.append(mav[i])
-
-                            i += 80 # interval detecting between R-peaks
-                            continue
-                    i += 1
-                
-                if r_peaks:
-                    intervals = np.diff(r_peaks) * DEFAULT_SAMPLE_INTERVAL  
-                    avg_interval = np.mean(intervals) if len(intervals) > 0 else 0
-                    heart_rate = 60 / avg_interval if avg_interval > 0 else 0
-                    self.var.heart_rate = heart_rate
-
-                    st.write(f"R-peaks detected: {len(r_peaks)}")
-                    st.write(f"Average interval: {avg_interval:.3f} seconds")
-                    st.write(f"Heart Rate: {heart_rate:.2f} BPM")
-
-                    mav_df = pd.DataFrame({
-                        "Sample": np.arange(len(mav)),
-                        "Value": mav,
-                    })
-
-                    peak_df = pd.DataFrame({
-                        "Sample": r_peaks,
-                        "Value": r_values,
-                    })
-
-                    base_chart = alt.Chart(mav_df).mark_line().encode(
-                        x=alt.X('Sample:Q', title='Sample'),
-                        y=alt.Y('Value:Q', title='Amplitude')
-                    )
-
-                    # Use the static threshold for visualization
-                    threshold_df = pd.DataFrame({'threshold': [threshold] * len(mav_df)})
-                    threshold_line = alt.Chart(threshold_df).mark_rule(color='red', strokeDash=[3, 3]).encode(
-                        y=alt.Y('threshold:Q'), 
-                        tooltip=alt.value(f"Threshold: {threshold:.2f}")
-                    )
-
-                    peak_chart = alt.Chart(peak_df).mark_circle(color='red', size=100).encode(
-                        x=alt.X('Sample:Q', title='Sample'),
-                        y=alt.Y('Value:Q')
-                    )
-
-                    chart = (base_chart + threshold_line + peak_chart).properties(
-                        title="MAV with R-peaks",
-                        width=800,
-                        height=400
-                    ).interactive()
-                    
-                    st.altair_chart(chart, use_container_width=True)
-                else:
-                    st.warning("No R-peaks detected. Try adjusting the threshold or window size.")
+                # Process ECG signal for heart beat detection
+                mav, r_peak, r_value, threshold, heart_rate = process_heart_rate(mav, config)
+                self.var.heart_rate = heart_rate
+                visualize_heart_rate(mav, r_peak, r_value, threshold)
             else:
                 st.warning("Please upload data first on the page.")
 
@@ -182,7 +135,6 @@ class Logic:
         except ValueError:
             st.error("Please enter valid numeric values: two floats for cutoff frequencies and an integer for order")
             return None
-    
 
     def applyFilter(self, filter_type="LPF", data_input=None, plot=False,fcl=None, fch=None, orde=None, frequencySampling=None):
         if data_input is None:

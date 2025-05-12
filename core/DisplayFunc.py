@@ -30,14 +30,6 @@ def read_csv_file(file_path):
 
     # Clean column names (strip quotes and whitespace)
     df.columns = df.columns.str.strip("'\" ").str.strip()
-
-    # # Convert the columns to numeric
-    # if 'sample interval' in df.columns:
-    #     df['sample interval'] = pd.to_numeric(df['sample interval'], errors='coerce')
-    # elif 'sample #' in df.columns:
-    #     df['sample #'] = pd.to_numeric(df['sample #'], errors='coerce')
-    # else:
-    #     raise KeyError("Neither 'sample interval' nor 'sample #' columns are present in the CSV file.")
         
     df['ECG'] = pd.to_numeric(df['ECG'], errors='coerce')
 
@@ -97,7 +89,7 @@ def plotData(titleChart="Data", data=None):
     
     # Buat DataFrame
     df = pd.DataFrame()
-    df["Time"] = np.arange(max_len)
+    df["Samples"] = np.arange(max_len)
     
     # Tambahkan setiap sinyal ke DataFrame
     for label, signal in data.items():
@@ -109,12 +101,12 @@ def plotData(titleChart="Data", data=None):
         else:
             df[label] = signal[:max_len]
     
-    df_long = df.melt(id_vars=["Time"], var_name="Signal", value_name="Value")
+    df_long = df.melt(id_vars=["Samples"], var_name="Signal", value_name="Amplitude")
     chart = alt.Chart(df_long).mark_line().encode(
-        x='Time',
-        y='Value',
+        x='Samples',
+        y='Amplitude',
         color='Signal',
-        tooltip=['Time', 'Signal', 'Value']
+        tooltip=['Samples', 'Signal', 'Amplitude']
     ).properties(
         title=titleChart,
         width=800,
@@ -166,3 +158,48 @@ def plotDFTs(title="comparasion", dft_data=None, fs=None, absolute=False):
     ).interactive()
     st.altair_chart(chart, use_container_width=True)
     return df_dft
+
+def visualize_heart_rate(mav, r_peaks, r_values, threshold):
+    """
+    Visualize heart rate data with R-peaks and threshold
+    
+    Parameters:
+    -----------
+    mav : ndarray
+        Moving average values
+    r_peaks : list
+        Indices of detected R-peaks
+    r_values : list
+        Amplitude values at R-peaks
+    threshold : float
+        Threshold used for peak detection
+    """
+    # Create visualization dataframes
+    mav_df = pd.DataFrame({"Sample": np.arange(len(mav)), "Value": mav})
+    peak_df = pd.DataFrame({"Sample": r_peaks, "Value": r_values})
+    threshold_df = pd.DataFrame({'threshold': [threshold] * len(mav_df)})
+    
+    # Create chart
+    base_chart = alt.Chart(mav_df).mark_line().encode(
+        x=alt.X('Sample:Q', title='Sample'),
+        y=alt.Y('Value:Q', title='Amplitude')
+    )
+
+    threshold_line = alt.Chart(threshold_df).mark_rule(color='red', strokeDash=[3, 3]).encode(
+        y=alt.Y('threshold:Q'), 
+        tooltip=alt.value(f"Threshold: {threshold:.4f}")
+    )
+
+    peak_chart = alt.Chart(peak_df).mark_circle(color='red', size=100).encode(
+        x=alt.X('Sample:Q', title='Sample'),
+        y=alt.Y('Value:Q'),
+        tooltip=['Sample:Q', 'Value:Q']
+    )
+
+    chart = (base_chart + threshold_line + peak_chart).properties(
+        title="MAV with R-peaks",
+        width=800,
+        height=400
+    ).interactive()
+    
+    st.altair_chart(chart, use_container_width=True)
