@@ -1,6 +1,6 @@
 # Filtering Amplitude to ECG Morphology. 
 
-Biomedical Signal Processing Project that converting the raw amplitude values in the data folder and applying a bandpass filter to obtain a clear morphology.
+Biomedical Signal Processing Project that converting the raw amplitude values in the data folder(default) and applying a bandpass filter to obtain a clear BPM.
 
 ## Prerequisites
 
