@@ -19,14 +19,13 @@ class Logic:
     def process_data(self):
         try:
             # Check if the user has uploaded a file
-            file_path = st.sidebar.file_uploader("Upload CSV file", type=["csv", "txt"])
+            file_path = st.sidebar.file_uploader("Upload data(csv or txt)", type=["csv", "txt"])
             if file_path is not None:
                 self.loadDisplayData(file_path, data_log = True) # Use the uploaded file
             else:
                 self.loadDisplayData(self.file_path) # Use the default file path if no file is uploaded
 
-
-            show_dft_comparison = st.sidebar.checkbox("Show DFT", value=False)
+            show_dft = st.sidebar.checkbox("Show DFT", value=False)
             if self.var.dataECG is not None:
                 fs = 2 * np.max(np.abs(self.var.dataECG))
                 duration = len(self.var.dataECG) * DEFAULT_SAMPLE_INTERVAL
@@ -35,8 +34,9 @@ class Logic:
             st.subheader("Plot Raw data...")
             self.merged_data_plot("Raw ECG",["Raw ECG"])
             st.write(f"fs: {fs}, Duration: {duration:.2f} seconds, data: {len(self.var.dataECG)}")
-
-            # self.dft_plot("DFT Raw", ["Raw ECG"], absolute=True, fs=fs)
+            if show_dft:
+               self.dft_plot("DFT Raw", ["Raw ECG"], absolute=True, fs=fs)
+       
             if self.var.dataECG is not None:
                 st.subheader("Plot filtered data...")
                 # Apply filters threshold
@@ -55,7 +55,7 @@ class Logic:
                     )
                 self.dataSignal["LPF"] = self.filtered_data
                 self.merged_data_plot("After Prefiltering")
-                if show_dft_comparison:
+                if show_dft:
                     self.dft_plot("DFT Raw vs LPF", ["Raw ECG", "LPF"], absolute=True, fs=fs)
                 
                 # Apply high-pass filter threshold 
@@ -75,7 +75,7 @@ class Logic:
                     )
                 self.dataSignal["BPF"] = self.filtered_data
                 self.merged_data_plot("BPF",["BPF"])
-                if show_dft_comparison:
+                if show_dft:
                     self.dft_plot("DFT BPF", ["BPF"], absolute=True, fs=fs)
 
             if self.var.filtered_data is not None:
