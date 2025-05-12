@@ -16,7 +16,7 @@ class Logic:
         self.filter_result = {}
         self.dft_cache = {}
 
-    # data flow section
+    # ======= main section =========
     def process_data(self):
         try:
             # Check if the user has uploaded a file
@@ -109,7 +109,8 @@ class Logic:
         except Exception as e:
             print_exc()
             st.error(f"An error occurred: {e}")
-
+    
+    # ======== utility section =========
     def samplingFrequency(self):
         if self.var.dataECG is None:
             st.warning("No data to process.")
@@ -177,7 +178,8 @@ class Logic:
                     st.metric("S", f"{len(segments['S'])}")
                 with col5:
                     st.metric("T", f"{len(segments['T'])}")
-
+                    
+    # ======== filter section =========
     def applyFilter(self, filter_type="LPF", data_input=None, plot=False,fcl=None, fch=None, orde=None, frequencySampling=None):
         if data_input is None:
             st.warning("No data to filter.")
@@ -309,7 +311,7 @@ class Logic:
         
         # if fs is None, use the sampling frequency from the data
         if fs is None:
-            fs = self.samplingFrequency()  # Default 1000Hz jika tidak ada data
+            fs = self.samplingFrequency()
         
         # Make a dictionary to store the DFT results
         dft_results = {}
@@ -320,13 +322,7 @@ class Logic:
         # Check if the specified filters are in the filter_result
         for filter_name in filters_to_process:
             if filter_name in self.filter_result:
-                # Take the data for the current filter
-                # data = self.filter_result[filter_name]
-
                 dft_data, used_fs = self.compute_dft(filter_name, self.filter_result[filter_name], fs)
-                
-                # Perform DFT on the data
-                # dft_data = DFT(data)
                 
                 # Store the DFT result in the dictionary
                 dft_results[filter_name] = dft_data

@@ -142,12 +142,11 @@ def forward_filter_IIR(b, a, x):
     y = np.zeros_like(x)
     # Input filtering IIR
     for n in range(len(x)):
-        # Loop untuk setiap sample input
         for i in range(len(b)):
             if n - i >= 0:
                 y[n] += b[i] * x[n - i]
         
-        for j in range(1, len(a)):  # Mulai dari a1
+        for j in range(1, len(a)):  
             if n - j >= len(x):
                 y[n] -= a[j] * y[n - j]
 
@@ -166,7 +165,7 @@ def backward_filter_IIR(b, a, x):
             if n + i < len(x):
                 y[n] += b[i] * x[n + i]
 
-        for j in range(1, len(a)):  # Mulai dari a1
+        for j in range(1, len(a)):  
             if n + j < len(x):
                 y[n] -= a[j] * y[n + j]
                 
@@ -315,17 +314,6 @@ def moving_average(data, window_size):
     return smoothed_data
 
 def process_heart_rate(mav, config):
-    """
-    Process ECG signal to detect heart rate
-    
-    Parameters:
-    -----------
-    mav    : ndarray
-        The Moving average values of the ECG signal
-    config : dict
-        Configuration parameters for heart rate detection
-    """
-    
     # Adjust threshold based on configuration
     threshold = config["threshold"]
     
@@ -340,23 +328,6 @@ def process_heart_rate(mav, config):
     return calculate_and_display_heart_rate(r_peaks, r_values, mav, threshold)
 
 def detect_peak(signal, threshold, peak_to_peak):
-    """
-    Detect R-peaks in the signal above the threshold
-    
-    Parameters:
-    -----------
-    signal : ndarray
-        The processed signal to detect peaks from
-    threshold : float
-        The amplitude threshold for peak detection
-    peak_to_peak : int
-        Minimum number of samples between peaks
-        
-    Returns:
-    --------
-    tuple: (r_peaks, r_values)
-        Lists of peak positions and their values
-    """
     r_peaks = []
     r_values = []
     
@@ -374,20 +345,6 @@ def detect_peak(signal, threshold, peak_to_peak):
     return r_peaks, r_values
 
 def calculate_and_display_heart_rate(r_peaks, r_values, mav, threshold):
-    """
-    Calculate and display heart rate metrics and visualization
-    
-    Parameters:
-    -----------
-    r_peaks : list
-        Indices of detected R-peaks
-    r_values : list
-        Amplitude values at R-peaks
-    mav : ndarray
-        Moving average values
-    threshold : float
-        Threshold used for peak detection
-    """
     if not r_peaks:
         st.warning("No R-peaks detected. Try adjusting the configuration parameters.")
         return

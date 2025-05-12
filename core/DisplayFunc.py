@@ -160,16 +160,6 @@ def plotDFTs(title="comparasion", dft_data=None, fs=None, absolute=False):
     return df_dft
 
 def visualize_pqrst_altair(ecg_signal, segments):
-    """
-    Visualize P, Q, R, S, and T waves on the ECG signal using Altair
-    
-    Parameters:
-    -----------
-    ecg_signal : ndarray
-        The ECG signal
-    segments : dict
-        Dictionary containing indices of P, Q, R, S, and T waves
-    """
     if not segments or ecg_signal is None:
         st.warning("No segments to visualize")
         return
@@ -195,7 +185,7 @@ def visualize_pqrst_altair(ecg_signal, segments):
     }
     
     for wave_type, indices in segments.items():
-        if indices:  # If there are any indices for this wave type
+        if indices:  
             for idx in indices:
                 wave_data.append({
                     'Time': time[idx],
