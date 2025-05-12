@@ -14,6 +14,7 @@ class Logic:
         self.segmentation = {}
         self.dataSignal = pd.DataFrame()
         self.filter_result = {}
+        self.dft_cache = {}
 
     # data flow section
     def process_data(self):
@@ -29,6 +30,7 @@ class Logic:
             if self.var.dataECG is not None:
                 fs = 2 * np.max(np.abs(self.var.dataECG))
                 duration = len(self.var.dataECG) * DEFAULT_SAMPLE_INTERVAL
+                self.compute_dft("Raw ECG", self.var.dataECG, fs)
 
             # Display the data
             st.subheader("Plot Raw data...")
@@ -55,9 +57,13 @@ class Logic:
                     )
                 self.dataSignal["LPF"] = self.filtered_data
                 self.merged_data_plot("After Prefiltering")
+                self.compute_dft("LPF", self.filtered_data, fs)
                 if show_dft:
-                    self.dft_plot("DFT Raw vs LPF", ["Raw ECG", "LPF"], absolute=True, fs=fs)
+                    self.dft_plot("DFT Raw vs LPF", ["Raw ECG", "LPF"], absolute=True, fs=fs)                    
                 
+                seg_data = self.var.filtered_data
+                self.process_segmentation(seg_data, window_name="Segmentation")
+                    
                 # Apply high-pass filter threshold 
                 fcl_bpf = np.max(np.abs(self.var.filtered_data)) * 0.65
                 fch_bpf = np.max(np.abs(self.var.filtered_data)) * 0.3
@@ -75,6 +81,7 @@ class Logic:
                     )
                 self.dataSignal["BPF"] = self.filtered_data
                 self.merged_data_plot("BPF",["BPF"])
+                self.compute_dft("BPF", self.filtered_data, fs)
                 if show_dft:
                     self.dft_plot("DFT BPF", ["BPF"], absolute=True, fs=fs)
 
@@ -135,6 +142,41 @@ class Logic:
         except ValueError:
             st.error("Please enter valid numeric values: two floats for cutoff frequencies and an integer for order")
             return None
+        
+    def process_segmentation(self, ecg_data, expanded= False, window_name="segmentation"):
+        segments = {}
+
+        with st.expander(f"{window_name}...", expanded=expanded):
+            threshold = np.max(ecg_data) * 0.6 + np.std(ecg_data)
+            r_peaks = []
+            
+            for i in range(1, len(ecg_data)-1):
+                if (ecg_data[i] > ecg_data[i-1] and 
+                    ecg_data[i] > ecg_data[i+1] and 
+                    ecg_data[i] > threshold):
+                    # Ensure minimum distance between peaks
+                    if not r_peaks or i - r_peaks[-1] > 30:  # ~300ms at 100Hz
+                        r_peaks.append(i)
+            
+            if r_peaks:
+                # Perform segmentation
+                segments = segment_ecg(ecg_data, r_peaks)
+                
+                # Visualize the segments using Altair
+                visualize_pqrst_altair(ecg_data, segments)
+
+                # Display metrics for each wave type
+                col1, col2, col3, col4, col5 = st.columns(5)
+                with col1:
+                    st.metric("P", f"{len(segments['P'])}")
+                with col2:
+                    st.metric("Q", f"{len(segments['Q'])}")
+                with col3:
+                    st.metric("R", f"{len(segments['R'])}")
+                with col4:
+                    st.metric("S", f"{len(segments['S'])}")
+                with col5:
+                    st.metric("T", f"{len(segments['T'])}")
 
     def applyFilter(self, filter_type="LPF", data_input=None, plot=False,fcl=None, fch=None, orde=None, frequencySampling=None):
         if data_input is None:
@@ -279,10 +321,12 @@ class Logic:
         for filter_name in filters_to_process:
             if filter_name in self.filter_result:
                 # Take the data for the current filter
-                data = self.filter_result[filter_name]
+                # data = self.filter_result[filter_name]
+
+                dft_data, used_fs = self.compute_dft(filter_name, self.filter_result[filter_name], fs)
                 
                 # Perform DFT on the data
-                dft_data = DFT(data)
+                # dft_data = DFT(data)
                 
                 # Store the DFT result in the dictionary
                 dft_results[filter_name] = dft_data
@@ -294,3 +338,22 @@ class Logic:
             plotDFTs(f"{title} - DFT", dft_results, fs, absolute)
         else:
             st.warning("There is no data to compare.")
+
+    #@make_a_paralel_processing
+    def compute_dft(self, label, data=None, fs=None):
+        if label in self.dft_cache:
+            return self.dft_cache[label]['dft'], self.dft_cache[label]['fs']
+
+        if data is None:
+            if label in self.filter_result:
+                data = self.filter_result[label]
+            else:
+                st.warning(f"Filter '{label}' Not Found (404).")
+                return None, None
+        
+        dft_result = DFT(data)
+        self.dft_cache[label] = {
+            'dft': dft_result,
+            'fs': fs
+        }
+        return dft_result, fs
