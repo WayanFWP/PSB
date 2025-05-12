@@ -83,7 +83,7 @@ class App:
         st.markdown("<br><br>", unsafe_allow_html=True)
         
         # Add an expander for footer content instead of fixed positioning
-        with st.expander("Project Information", expanded=False):
+        with st.expander("Project Information", expanded=True):
             col1, col2 = st.columns(2)
             
             with col1:

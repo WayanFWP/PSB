@@ -191,6 +191,118 @@ def forward_backward_filter(b, a, x):
     y = backward_filter_IIR(b, a, y_forward)
     return y
 
+def segment_ecg(ecg_signal, r_peaks, window_size=10):
+    """
+    Segment ECG signal into P, Q, R, S, and T waves based on R peaks
+    Using a positional approach rather than amplitude-based detection
+    
+    Parameters:
+    -----------
+    ecg_signal : ndarray
+        The filtered ECG signal
+    r_peaks : list
+        Indices of R-peaks
+    window_size : int
+        Window size for searching waves around R-peaks
+        
+    Returns:
+    --------
+    dict : Dictionary containing segmented waves
+    """
+    if ecg_signal is None or len(ecg_signal) == 0 or not r_peaks:
+        st.warning("No ECG signal or R-peaks detected for segmentation.")
+        return {}
+    
+    # Initialize segments dictionary
+    segments = {
+        "P": [],
+        "Q": [],
+        "R": r_peaks,
+        "S": [],
+        "T": []
+    }
+    
+    # Find Q and S waves (immediately before and after R peaks)
+    for r_idx in r_peaks:
+        # Look for Q wave (minimum before R peak)
+        q_search_start = max(0, r_idx - window_size//2)
+        q_search_end = r_idx
+        if q_search_start < q_search_end:
+            q_idx = q_search_start + np.argmin(ecg_signal[q_search_start:q_search_end])
+            segments["Q"].append(q_idx)
+        
+        # Look for S wave (minimum after R peak)
+        s_search_start = r_idx + 1
+        s_search_end = min(len(ecg_signal), r_idx + window_size//2)
+        if s_search_start < s_search_end:
+            s_idx = s_search_start + np.argmin(ecg_signal[s_search_start:s_search_end])
+            segments["S"].append(s_idx)
+    
+    # Find P waves - look for the maximum point before each Q wave
+    for i, q_idx in enumerate(segments["Q"]):
+        # Determine P search region
+        if i > 0 and i-1 < len(segments["S"]):  # If there's a previous beat
+            # Look from previous T wave area to current Q
+            prev_s_idx = segments["S"][i-1]
+            # Estimate where T would likely end (about 2/3 between S and next Q)
+            p_search_start = prev_s_idx + (q_idx - prev_s_idx) // 2  
+        else:
+            # If first beat, just look in reasonable window before Q
+            p_search_start = max(0, q_idx - window_size * 2)
+            
+        p_search_end = max(p_search_start + 5, q_idx - window_size//4)  # Leave gap before Q
+        
+        if p_search_start < p_search_end:
+            # Find the highest peak in this region
+            p_region = ecg_signal[p_search_start:p_search_end]
+            
+            # Use peak detection rather than just max value
+            p_candidates = []
+            for i in range(1, len(p_region)-1):
+                if p_region[i] > p_region[i-1] and p_region[i] > p_region[i+1]:
+                    p_candidates.append((i, p_region[i]))
+            
+            if p_candidates:
+                # Get the most prominent peak (highest amplitude)
+                p_local_idx = max(p_candidates, key=lambda x: x[1])[0]
+                p_idx = p_search_start + p_local_idx
+                segments["P"].append(p_idx)
+    
+    # Find T waves - look for the maximum point after each S wave
+    for i, s_idx in enumerate(segments["S"]):
+        # Determine T search region
+        if i < len(segments["S"]) - 1:  # If not the last beat
+            next_q_idx = segments["Q"][i+1] if i+1 < len(segments["Q"]) else len(ecg_signal)-1
+            # T wave occurs between current S and next P (which is before next Q)
+            t_search_end = max(s_idx + window_size//2, next_q_idx - window_size)
+        else:
+            # If last beat, just look in reasonable window after S
+            t_search_end = min(len(ecg_signal), s_idx + window_size * 2)
+            
+        t_search_start = s_idx + window_size//4  # Leave gap after S
+        
+        if t_search_start < t_search_end:
+            # Find the highest peak in this region
+            t_region = ecg_signal[t_search_start:t_search_end]
+            
+            # Use peak detection rather than just max value
+            t_candidates = []
+            for i in range(1, len(t_region)-1):
+                if t_region[i] > t_region[i-1] and t_region[i] > t_region[i+1]:
+                    t_candidates.append((i, t_region[i]))
+            
+            if t_candidates:
+                # Get the most prominent peak (highest amplitude)
+                t_local_idx = max(t_candidates, key=lambda x: x[1])[0]
+                t_idx = t_search_start + t_local_idx
+                segments["T"].append(t_idx)
+            else:
+                # If no clear peak found, use the maximum point
+                t_idx = t_search_start + np.argmax(t_region)
+                segments["T"].append(t_idx)
+    
+    return segments
+
 def moving_average(data, window_size):
     N = window_size
     smoothed_data = np.zeros(len(data))  
@@ -201,7 +313,6 @@ def moving_average(data, window_size):
                 sum_window += data[i - k]
         smoothed_data[i] = sum_window / N 
     return smoothed_data
-
 
 def process_heart_rate(mav, config):
     """
@@ -219,7 +330,7 @@ def process_heart_rate(mav, config):
     threshold = config["threshold"]
     
     # Find R-peaks
-    r_peaks, r_values = detect_r_peaks(
+    r_peaks, r_values = detect_peak(
         mav, 
         threshold, 
         config["interval"]
@@ -228,7 +339,7 @@ def process_heart_rate(mav, config):
     # Calculate and display heart rate metrics
     return calculate_and_display_heart_rate(r_peaks, r_values, mav, threshold)
 
-def detect_r_peaks(signal, threshold, peak_to_peak):
+def detect_peak(signal, threshold, peak_to_peak):
     """
     Detect R-peaks in the signal above the threshold
     

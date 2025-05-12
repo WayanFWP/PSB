@@ -159,6 +159,78 @@ def plotDFTs(title="comparasion", dft_data=None, fs=None, absolute=False):
     st.altair_chart(chart, use_container_width=True)
     return df_dft
 
+def visualize_pqrst_altair(ecg_signal, segments):
+    """
+    Visualize P, Q, R, S, and T waves on the ECG signal using Altair
+    
+    Parameters:
+    -----------
+    ecg_signal : ndarray
+        The ECG signal
+    segments : dict
+        Dictionary containing indices of P, Q, R, S, and T waves
+    """
+    if not segments or ecg_signal is None:
+        st.warning("No segments to visualize")
+        return
+    
+    # Create a time array
+    time = np.arange(len(ecg_signal)) * 0.01
+    
+    # Create a DataFrame for the ECG signal
+    df_ecg = pd.DataFrame({
+        'Time': time,
+        'Amplitude': ecg_signal,
+        'Type': 'ECG Signal'
+    })
+    
+    # Create DataFrames for each wave type
+    wave_data = []
+    wave_colors = {
+        "P": "#4CAF50",  # Green
+        "Q": "#F44336",  # Red
+        "R": "#2196F3",  # Blue
+        "S": "#FF9800",  # Orange
+        "T": "#9C27B0"   # Purple
+    }
+    
+    for wave_type, indices in segments.items():
+        if indices:  # If there are any indices for this wave type
+            for idx in indices:
+                wave_data.append({
+                    'Time': time[idx],
+                    'Amplitude': ecg_signal[idx],
+                    'Type': wave_type
+                })
+    
+    df_waves = pd.DataFrame(wave_data)
+    
+    # Create the ECG line chart
+    ecg_chart = alt.Chart(df_ecg).mark_line(color='gray').encode(
+        x=alt.X('Time:Q', title='samples'),
+        y=alt.Y('Amplitude:Q', title='Amplitude'),
+        tooltip=['Time', 'Amplitude']
+    )
+    
+    # Create scatter plots for each wave type
+    wave_chart = alt.Chart(df_waves).mark_circle(size=100).encode(
+        x=alt.X('Time:Q'),
+        y=alt.Y('Amplitude:Q'),
+        color=alt.Color('Type:N', scale=alt.Scale(domain=list(wave_colors.keys()), 
+                                                  range=list(wave_colors.values()))),
+        tooltip=['Type', 'Time', 'Amplitude']
+    )
+    
+    # Combine the charts
+    chart = (ecg_chart + wave_chart).properties(
+        title='ECG Signal with PQRST Segmentation',
+        width=800,
+        height=400
+    ).interactive()
+    
+    # Display the chart in Streamlit
+    st.altair_chart(chart, use_container_width=True)
+
 def visualize_heart_rate(mav, r_peaks, r_values, threshold):
     """
     Visualize heart rate data with R-peaks and threshold
