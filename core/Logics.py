@@ -90,7 +90,7 @@ class Logic:
                 # Calculate MAV
                 mav, threshold = self.applyMAV(
                     self.var.filtered_data, 
-                    window_size=60
+                    window_size=30
                 )
 
                 config = {
@@ -148,7 +148,7 @@ class Logic:
         segments = {}
 
         with st.expander(f"{window_name}...", expanded=expanded):
-            threshold = np.max(ecg_data) * 0.6 + np.std(ecg_data)
+            threshold = np.max(ecg_data) * 0.05 + np.std(ecg_data)
             r_peaks = []
             
             for i in range(1, len(ecg_data)-1):
@@ -203,7 +203,7 @@ class Logic:
         try:
             if filter_type == "LPF":
                 b, a = LPF(fcl, orde, frequencySampling)
-                st.write("A: ", a,"B:", b)
+                # st.write("A: ", a,"B:", b)
                 filtered_data = forward_backward_filter(b, a, data_input)
                 if plot:
                     self.dft_plot("DFT LPF", ["LPF"], absolute=True, fs=frequencySampling)
@@ -248,7 +248,7 @@ class Logic:
             self.merged_data_plot("MAV", ["MAV"])
 
             st.write(f"Mean Absolute Value (MAV) calculated with window size {window_size}.")
-            threshold = (np.max(mav) - np.mean(mav)) * 0.35
+            threshold = (np.max(mav)) * 0.05 + np.mean(mav)
             st.write(f"Threshold: {threshold:.5f}")
 
             return mav , threshold
