@@ -90,7 +90,7 @@ class Logic:
                 # Calculate MAV
                 mav, threshold = self.applyMAV(
                     self.var.filtered_data, 
-                    window_size=10
+                    window_size=60
                 )
 
                 config = {
@@ -203,6 +203,7 @@ class Logic:
         try:
             if filter_type == "LPF":
                 b, a = LPF(fcl, orde, frequencySampling)
+                st.write("A: ", a,"B:", b)
                 filtered_data = forward_backward_filter(b, a, data_input)
                 if plot:
                     self.dft_plot("DFT LPF", ["LPF"], absolute=True, fs=frequencySampling)
@@ -247,7 +248,7 @@ class Logic:
             self.merged_data_plot("MAV", ["MAV"])
 
             st.write(f"Mean Absolute Value (MAV) calculated with window size {window_size}.")
-            threshold = (np.max(mav) - np.mean(mav)) * 0.25
+            threshold = (np.max(mav) - np.mean(mav)) * 0.35
             st.write(f"Threshold: {threshold:.5f}")
 
             return mav , threshold

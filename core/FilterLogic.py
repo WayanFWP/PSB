@@ -37,47 +37,43 @@ def IDFT(X):
 
 def LPF(fc, order, fs):
     """
-    Design a Butterworth Low-Pass Filter (LPF) using bilinear transform.
+    Rancang Butterworth Low-Pass Filter digital dari spesifikasi analog
+    tanpa prewarp (karena cutoff diberikan dalam domain analog).
     
     Args:
-        fc (float): Cutoff frequency (Hz).
-        order (int): Filter order.
-        fs (float): Sampling frequency (Hz).
+        fc (float): Analog cutoff frequency dalam rad/s
+        order (int): Orde filter
+        fs (float): Sampling frequency (Hz)
         
     Returns:
-        b (np.ndarray): Feedforward coefficients.
-        a (np.ndarray): Feedback coefficients.
+        b, a: Koefisien numerator dan denominator dari H(z)
     """
-    # Normalized digital cutoff frequency (prewarped)
-    Wc = 2 * np.pi * fc
-    T = 1 / fs
-    prewarp = 2 / T * np.tan(Wc * T / 2)  # Prewarping for bilinear transform
-    
-    # Generate analog Butterworth poles
+    T = 1 / fs  # sampling period
+
+    # Cutoff frekuensi analog (sudah dalam rad/s, tidak perlu prewarp)
+    Wc = fc * np.pi * 2
+
+    # 1. Hitung analog poles Butterworth (di s-domain)
     poles = []
     for k in range(order):
         theta = np.pi * (2 * k + 1) / (2 * order)
-        pole = prewarp * complex(-np.sin(theta), np.cos(theta))
-        poles.append(pole)
-    
-    # Initialize coefficients
+        s_k = Wc * complex(-np.sin(theta), np.cos(theta))
+        poles.append(s_k)
+
+    # 2. Transformasi bilinear (s → z)
     a = np.array([1.0])
     b = np.array([1.0])
-    
-    # Bilinear transform for each pole
     for p in poles:
-        # Transform analog pole to digital 
-        zd = (2/T + p) / (2/T - p)
-        a = np.convolve(a, [1, -zd.real])
-        b = np.convolve(b, [1, 1])
-    
-    # Normalize gain at DC (ω=0) to 1
+        z_k = (2/T + p) / (2/T - p)
+        a = np.convolve(a, [1, -z_k.real])  # hanya real part karena diasumsikan conjugate pair
+        b = np.convolve(b, [1, 1])  # dummy numerator
+
+    # 3. Normalisasi gain di DC
     gain = np.sum(b) / np.sum(a)
-    if np.isclose(gain, 0) or np.isinf(gain) or np.isnan(gain):
-        raise ValueError("Invalid gain calculated for. Check filter parameters.")
     b = b / gain
-    
+
     return b.real, a.real
+
 
 def HPF(fc, order, fs):
     """
@@ -94,13 +90,12 @@ def HPF(fc, order, fs):
     # Normalized digital cutoff frequency (prewarped)
     Wc = 2 * np.pi * fc
     T = 1 / fs
-    prewarp = 2 / T * np.tan(Wc * T / 2)  # Prewarping for bilinear transform
     
     # Generate analog Butterworth poles
     poles = []
     for k in range(order):
         theta = np.pi * (2 * k + 1) / (2 * order)
-        pole = prewarp * complex(-np.sin(theta), np.cos(theta))
+        pole = Wc * complex(-np.sin(theta), np.cos(theta))
         poles.append(pole)
     
     # Initialize coefficients
