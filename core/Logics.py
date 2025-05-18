@@ -224,7 +224,6 @@ class Logic:
         return 2 * np.max(np.abs(self.var.dataECG))
 
     def get_filter_parameters(self, fc_l, fc_h, orde):
-        """Gets filter parameters from user input."""
         filter_param_inputs = {
             "parameter": st.text_input("Filter Parameters (Low-Cutoff High-Cutoff Order)", value=f"{fc_l} {fc_h} {orde}"),
         }
@@ -430,15 +429,6 @@ class Logic:
         return dft_result, fs
 
     def display_filter_response(self, filter_type="BPF", fcl=None, fch=None, fs=None):
-        """
-        Calculate and display the frequency response of a filter.
-        
-        Args:
-            filter_type (str): Filter type (BPF, LPF, HPF)
-            fcl (float): Low cutoff frequency
-            fch (float): High cutoff frequency
-            fs (float): Sampling frequency
-        """
         if not fcl or not fch or not fs:
             st.warning("Please provide valid filter parameters.")
             return
@@ -446,7 +436,6 @@ class Logic:
         st.subheader(f"{filter_type} Frequency Response")
         st.write(f"Low cutoff: {fcl} Hz, High cutoff: {fch} Hz, Sampling rate: {fs} Hz")
         
-        # Calculate the frequency response
         freq, response = frequency_response(
             signal=np.zeros(100),  # Dummy signal, not used in calculation
             fs=fs,
@@ -454,7 +443,6 @@ class Logic:
             fh=fch
         )
         
-        # Plot the frequency response
         plotFrequencyResponse(
             title="Filter Frequency Response",
             freq=freq,

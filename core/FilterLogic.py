@@ -2,7 +2,6 @@ import numpy as np
 import streamlit as st
 
 def DFT(signal, fs):
-    # Convert to numpy array if it's a DataFrame
     if hasattr(signal, 'values'):
         signal = signal.values.flatten()
     elif not isinstance(signal, np.ndarray):
@@ -26,13 +25,11 @@ def DFT(signal, fs):
 
     return f, Mag[:N//2]
 
-# filter
 def LPF(signal, fl, fs):
     N = len(signal)
     T = 1 / fs
     Wc = 2 * np.pi * fl
 
-    # Koefisien
     denom = (4 / T**2) + (2 * np.sqrt(2) * Wc / T) + Wc**2
     b1 = ((8 / T**2) - (2 * Wc**2)) / denom
     b2 = ((4 / T**2) - (2 * np.sqrt(2) * Wc / T) + Wc**2) / denom
@@ -49,7 +46,6 @@ def HPF(signal,fh,fs):
     T = 1/fs
     Wc = 2 * np.pi * fh
 
-    #   koefisien
     denom = (4/T**2) + (2*np.sqrt(2)*Wc/T) + Wc**2
     b1 = ((8/T**2) - 2*Wc**2)/ denom
     b2 = ((4/T**2) - (2*np.sqrt(2)*Wc/T) + Wc**2)/ denom
@@ -70,25 +66,14 @@ def BPF(signal, fc1, fc2, order, fs):
     return filtered_data
 
 def segmented_ecg(sig):
-    # col1, col2, col3 = st.columns(3)
-
-    # Input untuk P wave
-    # t0p = col1.number_input("Start time of P wave (ms)", min_value=0, value=19, step=1)
-    # t1p = col1.number_input("End time of P wave (ms)", min_value=0, value=35, step=1)
     start_p, end_p = 19, 35
     p_wave = sig[start_p:end_p]
     index_p = np.arange(start_p, end_p)
 
-    # Input untuk QRS complex
-    # t0qrs = col2.number_input("Start time of QRS complex (ms)", min_value=0, value=34, step=1)
-    # t1qrs = col2.number_input("End time of QRS complex (ms)", min_value=0, value=46, step=1)
     start_qrs, end_qrs = 34, 46
     qrs_wave = sig[start_qrs:end_qrs]
     index_qrs = np.arange(start_qrs, end_qrs)
 
-    # Input untuk T wave
-    # t0t = col3.number_input("Start time of T wave (ms)", min_value=0, value=45, step=1)
-    # t1t = col3.number_input("End time of T wave (ms)", min_value=0, value=78, step=1)
     start_t, end_t = 45,78
     t_wave = sig[start_t:end_t]
     index_t = np.arange(start_t, end_t)
@@ -119,7 +104,6 @@ def frequency_response(signal, fs, fl, fh):
     magnitude_response_bpf = np.zeros(num_points)
 
     for i, omega in enumerate(omegas):
-        # High-pass filter (HPF) - perhitungan respons kompleks
         numR_hpf = (4 / T**2) * (1 - 2 * np.cos(omega) + np.cos(2 * omega))
         numI_hpf = (4 / T**2) * (2 * np.sin(omega) - np.sin(2 * omega))
         denumR_hpf = (
@@ -134,7 +118,6 @@ def frequency_response(signal, fs, fl, fh):
         )
         hpf_complex_response = (numR_hpf + 1j * numI_hpf) / (denumR_hpf + 1j * denumI_hpf)
 
-        # Low-pass filter (LPF) - perhitungan respons kompleks
         numR_lpf = wc_lpf**2 * (1 + 2 * np.cos(omega) + np.cos(2 * omega))
         numI_lpf = -wc_lpf**2 * (2 * np.sin(omega) + np.sin(2 * omega))
         denumR_lpf_lpf = (
@@ -148,9 +131,12 @@ def frequency_response(signal, fs, fl, fh):
         )
         lpf_complex_response = (numR_lpf + 1j * numI_lpf) / (denumR_lpf_lpf + 1j * denumI_lpf_lpf)
 
-        # Band-pass filter (BPF) - perkalian respons kompleks
         bpf_complex_response = hpf_complex_response * lpf_complex_response
         magnitude_response_bpf[i] = np.abs(bpf_complex_response)
+
+    max_value = np.max(magnitude_response_bpf)
+    if max_value > 0:
+        magnitude_response_bpf = magnitude_response_bpf / max_value
 
     return frequencies, magnitude_response_bpf
 
@@ -166,7 +152,6 @@ def moving_average(data, window_size):
     return smoothed_data
 
 def process_heart_rate(mav, config):
-    # Adjust threshold based on configuration
     threshold = config["threshold"]
     
     # Find R-peaks
@@ -176,7 +161,6 @@ def process_heart_rate(mav, config):
         config["interval"]
     )
     
-    # Calculate and display heart rate metrics
     return calculate_and_display_heart_rate(r_peaks, r_values, mav, threshold)
 
 def detect_peak(signal, threshold, peak_to_peak):
@@ -185,7 +169,6 @@ def detect_peak(signal, threshold, peak_to_peak):
     
     i = 0
     while i < len(signal) - 1:
-        # Check if current point is above threshold and is a local maximum
         if signal[i] > threshold and i > 0 and i < len(signal) - 1:
             if signal[i] > signal[i-1] and signal[i] > signal[i+1]:
                 r_peaks.append(i)
@@ -205,7 +188,6 @@ def calculate_and_display_heart_rate(r_peaks, r_values, mav, threshold):
     avg_interval = np.mean(intervals) if len(intervals) > 0 else 0
     heart_rate = 60 / avg_interval if avg_interval > 0 else 0
 
-    # Display metrics
     metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
     with metrics_col1:
         st.metric("R-peaks detected", f"{len(r_peaks)}")
