@@ -1,301 +1,158 @@
 import numpy as np
 import streamlit as st
 
-def DFT(x):
-    """
-    Compute the Discrete Fourier Transform (DFT) of a 1D array.
-    Args:
-        x (np.ndarray): Input array.
-    Returns:
-        np.ndarray: DFT of the input array.
-    """
-    x = np.asarray(x, dtype=np.complex128)
-    N = x.shape[0]
-    n = np.arange(N)
-    k = n.reshape((N, 1))
-    M = np.exp(-2j * np.pi * k * n / N)
-    return np.dot(M, x)
-
-def IDFT(X):
-    """
-    Compute the Inverse Discrete Fourier Transform (IDFT) of a 1D array.
-    Args:
-        X (np.ndarray): Input DFT array.
-    Returns:
-        np.ndarray: Reconstructed time-domain signal.
-    """
-    X = np.asarray(X, dtype=np.complex128)
-    N = X.shape[0]
-    x = np.zeros(N, dtype=np.complex128)
-
-    for n in range(N):
-        for k in range(N):
-            angle = 2j * np.pi * k * n / N
-            x[n] += X[k] * np.exp(angle)
-        x[n] /= N
-    return np.real(x)
-
-def LPF(fc, order, fs):
-    """
-    Rancang Butterworth Low-Pass Filter digital dari spesifikasi analog
-    tanpa prewarp (karena cutoff diberikan dalam domain analog).
-    
-    Args:
-        fc (float): Analog cutoff frequency dalam rad/s
-        order (int): Orde filter
-        fs (float): Sampling frequency (Hz)
+def DFT(signal, fs):
+    # Convert to numpy array if it's a DataFrame
+    if hasattr(signal, 'values'):
+        signal = signal.values.flatten()
+    elif not isinstance(signal, np.ndarray):
+        signal = np.array(signal)
         
-    Returns:
-        b, a: Koefisien numerator dan denominator dari H(z)
-    """
-    T = 1 / fs  # sampling period
-
-    # Cutoff frekuensi analog (sudah dalam rad/s, tidak perlu prewarp)
-    Wc = fc * np.pi * 2
-
-    # 1. Hitung analog poles Butterworth (di s-domain)
-    poles = []
-    for k in range(order):
-        theta = np.pi * (2 * k + 1) / (2 * order)
-        s_k = Wc * complex(-np.sin(theta), np.cos(theta))
-        poles.append(s_k)
-
-    # 2. Transformasi bilinear (s → z)
-    a = np.array([1.0])
-    b = np.array([1.0])
-    for p in poles:
-        z_k = (2/T + p) / (2/T - p)
-        a = np.convolve(a, [1, -z_k.real])  # hanya real part karena diasumsikan conjugate pair
-        b = np.convolve(b, [1, 1])  # dummy numerator
-
-    # 3. Normalisasi gain di DC
-    gain = np.sum(b) / np.sum(a)
-    b = b / gain
-
-    return b.real, a.real
+    N = len(signal)
+    Re = np.zeros(N) 
+    Im = np.zeros(N)
+    Mag = np.zeros(N)
 
 
-def HPF(fc, order, fs):
-    """
-    Design a Butterworth High-Pass Filter (HPF) using bilinear transform.
-    Args:
-        fc (float): Cutoff frequency (Hz).
-        order (int): Filter order.
-        fs (float): Sampling frequency (Hz).
-        
-    Returns:
-        b (np.ndarray): Feedforward coefficients.
-        a (np.ndarray): Feedback coefficients.
-    """
-    # Normalized digital cutoff frequency (prewarped)
-    Wc = 2 * np.pi * fc
+    for k in range(N):
+        for n in range(N):
+            omega = 2 * np.pi * k * n / N
+            Re[k] += signal[n] * np.cos(omega)
+            Im[k] -= signal[n] * np.sin(omega)
+
+        Mag[k] = np.sqrt(Re[k] ** 2 + Im[k] ** 2)
+
+    f = np.arange(0, N // 2) * fs / N
+
+    return f, Mag[:N//2]
+
+# filter
+def LPF(signal, fl, fs):
+    N = len(signal)
     T = 1 / fs
-    
-    # Generate analog Butterworth poles
-    poles = []
-    for k in range(order):
-        theta = np.pi * (2 * k + 1) / (2 * order)
-        pole = Wc * complex(-np.sin(theta), np.cos(theta))
-        poles.append(pole)
-    
-    # Initialize coefficients
-    a = np.array([1.0])
-    b = np.array([1.0])
-    
-    # Bilinear transform for each pole (HPF version)
-    for p in poles:
-        # Transform analog pole to digital (HPF)
-        zd = (2/T + p) / (2/T - p)
-        a = np.convolve(a, [1, -zd.real])
-        b = np.convolve(b, [1, -1])  # Note the [1, -1] here for HPF characteristic
-    
-    # Normalize gain at Nyquist (ω=π) to 1
-    # For HPF, we evaluate at z=-1 (ω=π)
-    gain = np.sum(b * np.power(-1, np.arange(len(b)))) / np.sum(a * np.power(-1, np.arange(len(a))))
-    if np.isclose(gain, 0) or np.isinf(gain) or np.isnan(gain):
-        raise ValueError("Invalid gain calculated for HPF. Check filter parameters.")
-    b = b / gain
-    
-    return b.real, a.real
+    Wc = 2 * np.pi * fl
+
+    # Koefisien
+    denom = (4 / T**2) + (2 * np.sqrt(2) * Wc / T) + Wc**2
+    b1 = ((8 / T**2) - (2 * Wc**2)) / denom
+    b2 = ((4 / T**2) - (2 * np.sqrt(2) * Wc / T) + Wc**2) / denom
+    a0 = Wc**2 / denom
+    a1 = 2 * Wc**2 / denom
+    a2 = a0
+    y = np.zeros(N)
+    for n in range(2, N-2):
+        y[n] = (b1 * y[n-1]) - (b2 * y[n-2]) + (a0 * signal[n]) + (a1 * signal[n-1]) + (a2 * signal[n-2])
+    return y
+  
+def HPF(signal,fh,fs):
+    N = len(signal)
+    T = 1/fs
+    Wc = 2 * np.pi * fh
+
+    #   koefisien
+    denom = (4/T**2) + (2*np.sqrt(2)*Wc/T) + Wc**2
+    b1 = ((8/T**2) - 2*Wc**2)/ denom
+    b2 = ((4/T**2) - (2*np.sqrt(2)*Wc/T) + Wc**2)/ denom
+    a0 = (4/T**2) / denom
+    a1 = (-8/T**2) / denom
+    a2 = a0
+    y = np.zeros(N)
+    for n in range(0, N-1):
+        y[n] = (b1 * y[n-1]) - (b2 * y[n-2]) + (a0 * signal[n]) + (a1 * signal[n-1]) + (a2 * signal[n-2])
+    return y
     
 
 def BPF(signal, fc1, fc2, order, fs):
     orde = int(order / 2)
 
-    b_lpf, a_lpf = LPF(fc1, orde, fs)
-    filtered_lpf = forward_backward_filter(b_lpf, a_lpf, signal)
-
-    b_hpf, a_hpf = HPF(fc2, orde, fs)
-    filtered_data = forward_backward_filter(b_hpf, a_hpf, filtered_lpf)
-
+    lpf_data = LPF(signal, fc1, fs)
+    filtered_data = HPF(lpf_data, fc2, fs)
     return filtered_data
 
-def forward_filter_IIR(b, a, x):
-    """
-    forward filtering for IIR
-    """
-    y = np.zeros_like(x)
-    # Input filtering IIR
-    for n in range(len(x)):
-        for i in range(len(b)):
-            if n - i >= 0:
-                y[n] += b[i] * x[n - i]
-        
-        for j in range(1, len(a)):  
-            if n - j >= len(x):
-                y[n] -= a[j] * y[n - j]
+def segmented_ecg(sig):
+    # col1, col2, col3 = st.columns(3)
 
-    return y
+    # Input untuk P wave
+    # t0p = col1.number_input("Start time of P wave (ms)", min_value=0, value=19, step=1)
+    # t1p = col1.number_input("End time of P wave (ms)", min_value=0, value=35, step=1)
+    start_p, end_p = 19, 35
+    p_wave = sig[start_p:end_p]
+    index_p = np.arange(start_p, end_p)
 
-def backward_filter_IIR(b, a, x):
-    """
-    backward filtering for IIR
-    Returns:
-        np.ndarray: Output filter
-    """
-    y = np.zeros_like(x)
-    # Backward filtering IIR
-    for n in range(len(x) - 1, -1, -1):
-        for i in range(len(b)):
-            if n + i < len(x):
-                y[n] += b[i] * x[n + i]
+    # Input untuk QRS complex
+    # t0qrs = col2.number_input("Start time of QRS complex (ms)", min_value=0, value=34, step=1)
+    # t1qrs = col2.number_input("End time of QRS complex (ms)", min_value=0, value=46, step=1)
+    start_qrs, end_qrs = 34, 46
+    qrs_wave = sig[start_qrs:end_qrs]
+    index_qrs = np.arange(start_qrs, end_qrs)
 
-        for j in range(1, len(a)):  
-            if n + j < len(x):
-                y[n] -= a[j] * y[n + j]
-                
-    return y
+    # Input untuk T wave
+    # t0t = col3.number_input("Start time of T wave (ms)", min_value=0, value=45, step=1)
+    # t1t = col3.number_input("End time of T wave (ms)", min_value=0, value=78, step=1)
+    start_t, end_t = 45,78
+    t_wave = sig[start_t:end_t]
+    index_t = np.arange(start_t, end_t)
+    return index_t, index_p, index_qrs, p_wave, qrs_wave, t_wave
 
+def peak_magnitude(f_qrs, Mag_qrs):
+    index_max = np.argmax(Mag_qrs)
+    fc_low = f_qrs[index_max]
 
-def forward_backward_filter(b, a, x):
-    """
-    Apply forward-backward IIR filtering for zero-phase distortion.
-    Args:
-        b (np.ndarray): Feedforward coefficients.
-        a (np.ndarray): Feedback coefficients.
-        x (np.ndarray): Input signal.
-    Returns:
-        np.ndarray: Filtered signal.
-    """
-    b = b.astype(np.float64)
-    a = a.astype(np.float64)
-    x = x.astype(np.float64)
+    if fc_low < 0.1:
+        fc_low = 0.1
     
-    y_forward = forward_filter_IIR(b, a, x)
-    y = backward_filter_IIR(b, a, y_forward)
-    return y
+    mag_qrs_copy = np.copy(Mag_qrs)
+    mag_qrs_copy[index_max] = -np.inf
 
-def segment_ecg(ecg_signal, r_peaks, window_size=10):
-    """
-    Segment ECG signal into P, Q, R, S, and T waves based on R peaks
-    Using a positional approach rather than amplitude-based detection
-    
-    Parameters:
-    -----------
-    ecg_signal : ndarray
-        The filtered ECG signal
-    r_peaks : list
-        Indices of R-peaks
-    window_size : int
-        Window size for searching waves around R-peaks
-        
-    Returns:
-    --------
-    dict : Dictionary containing segmented waves
-    """
-    if ecg_signal is None or len(ecg_signal) == 0 or not r_peaks:
-        st.warning("No ECG signal or R-peaks detected for segmentation.")
-        return {}
-    
-    # Initialize segments dictionary
-    segments = {
-        "P": [],
-        "Q": [],
-        "R": r_peaks,
-        "S": [],
-        "T": []
-    }
-    
-    # Find Q and S waves (immediately before and after R peaks)
-    for r_idx in r_peaks:
-        # Look for Q wave (minimum before R peak)
-        q_search_start = max(0, r_idx - window_size//2)
-        q_search_end = r_idx
-        if q_search_start < q_search_end:
-            q_idx = q_search_start + np.argmin(ecg_signal[q_search_start:q_search_end])
-            segments["Q"].append(q_idx)
-        
-        # Look for S wave (minimum after R peak)
-        s_search_start = r_idx + 1
-        s_search_end = min(len(ecg_signal), r_idx + window_size//2)
-        if s_search_start < s_search_end:
-            s_idx = s_search_start + np.argmin(ecg_signal[s_search_start:s_search_end])
-            segments["S"].append(s_idx)
-    
-    # Find P waves - look for the maximum point before each Q wave
-    for i, q_idx in enumerate(segments["Q"]):
-        # Determine P search region
-        if i > 0 and i-1 < len(segments["S"]):  # If there's a previous beat
-            # Look from previous T wave area to current Q
-            prev_s_idx = segments["S"][i-1]
-            # Estimate where T would likely end (about 2/3 between S and next Q)
-            p_search_start = prev_s_idx + (q_idx - prev_s_idx) // 2  
-        else:
-            # If first beat, just look in reasonable window before Q
-            p_search_start = max(0, q_idx - window_size * 2)
-            
-        p_search_end = max(p_search_start + 5, q_idx - window_size//4)  # Leave gap before Q
-        
-        if p_search_start < p_search_end:
-            # Find the highest peak in this region
-            p_region = ecg_signal[p_search_start:p_search_end]
-            
-            # Use peak detection rather than just max value
-            p_candidates = []
-            for i in range(1, len(p_region)-1):
-                if p_region[i] > p_region[i-1] and p_region[i] > p_region[i+1]:
-                    p_candidates.append((i, p_region[i]))
-            
-            if p_candidates:
-                # Get the most prominent peak (highest amplitude)
-                p_local_idx = max(p_candidates, key=lambda x: x[1])[0]
-                p_idx = p_search_start + p_local_idx
-                segments["P"].append(p_idx)
-    
-    # Find T waves - look for the maximum point after each S wave
-    for i, s_idx in enumerate(segments["S"]):
-        # Determine T search region
-        if i < len(segments["S"]) - 1:  # If not the last beat
-            next_q_idx = segments["Q"][i+1] if i+1 < len(segments["Q"]) else len(ecg_signal)-1
-            # T wave occurs between current S and next P (which is before next Q)
-            t_search_end = max(s_idx + window_size//2, next_q_idx - window_size)
-        else:
-            # If last beat, just look in reasonable window after S
-            t_search_end = min(len(ecg_signal), s_idx + window_size * 2)
-            
-        t_search_start = s_idx + window_size//4  # Leave gap after S
-        
-        if t_search_start < t_search_end:
-            # Find the highest peak in this region
-            t_region = ecg_signal[t_search_start:t_search_end]
-            
-            # Use peak detection rather than just max value
-            t_candidates = []
-            for i in range(1, len(t_region)-1):
-                if t_region[i] > t_region[i-1] and t_region[i] > t_region[i+1]:
-                    t_candidates.append((i, t_region[i]))
-            
-            if t_candidates:
-                # Get the most prominent peak (highest amplitude)
-                t_local_idx = max(t_candidates, key=lambda x: x[1])[0]
-                t_idx = t_search_start + t_local_idx
-                segments["T"].append(t_idx)
-            else:
-                # If no clear peak found, use the maximum point
-                t_idx = t_search_start + np.argmax(t_region)
-                segments["T"].append(t_idx)
-    
-    return segments
+    fc_high = f_qrs[np.argmax(mag_qrs_copy)]
+
+    return fc_low, fc_high
+
+def frequency_response(signal, fs, fl, fh):
+    N = len(signal)
+    T = 1 / fs
+    wc_lpf = 2 * np.pi * fl
+    wc_hpf = 2 * np.pi * fh
+    num_points = 1000
+    omegas = np.linspace(0, np.pi, num_points)
+    frequencies = omegas * fs / (2 * np.pi)  
+    magnitude_response_bpf = np.zeros(num_points)
+
+    for i, omega in enumerate(omegas):
+        # High-pass filter (HPF) - perhitungan respons kompleks
+        numR_hpf = (4 / T**2) * (1 - 2 * np.cos(omega) + np.cos(2 * omega))
+        numI_hpf = (4 / T**2) * (2 * np.sin(omega) - np.sin(2 * omega))
+        denumR_hpf = (
+            wc_hpf**2 * (1 + 2 * np.cos(omega) + np.cos(2 * omega))
+            + np.sqrt(2) * wc_hpf * (2 / T) * (1 - np.cos(2 * omega))
+            + (4 / T**2) * (1 - 2 * np.cos(omega) + np.cos(2 * omega))
+        )
+        denumI_hpf = (
+            wc_hpf**2 * (2 * np.sin(omega) - np.sin(2 * omega))
+            + np.sqrt(2) * wc_hpf * (2 / T) * (1 - np.cos(2 * omega))
+            + (4 / T**2) * (2 * np.sin(omega) - np.sin(2 * omega))
+        )
+        hpf_complex_response = (numR_hpf + 1j * numI_hpf) / (denumR_hpf + 1j * denumI_hpf)
+
+        # Low-pass filter (LPF) - perhitungan respons kompleks
+        numR_lpf = wc_lpf**2 * (1 + 2 * np.cos(omega) + np.cos(2 * omega))
+        numI_lpf = -wc_lpf**2 * (2 * np.sin(omega) + np.sin(2 * omega))
+        denumR_lpf_lpf = (
+            (4 / T**2) + (2 * np.sqrt(2) * wc_lpf / T) + wc_lpf**2
+            - ((8 / T**2) - 2 * wc_lpf**2) * np.cos(omega)
+            + ((4 / T**2) - (2 * np.sqrt(2) * wc_lpf / T) + wc_lpf**2) * np.cos(2 * omega)
+        )
+        denumI_lpf_lpf = (
+            ((8 / T**2) - 2 * wc_lpf**2) * np.sin(omega)
+            - ((4 / T**2) - (2 * np.sqrt(2) * wc_lpf / T) + wc_lpf**2) * np.sin(2 * omega)
+        )
+        lpf_complex_response = (numR_lpf + 1j * numI_lpf) / (denumR_lpf_lpf + 1j * denumI_lpf_lpf)
+
+        # Band-pass filter (BPF) - perkalian respons kompleks
+        bpf_complex_response = hpf_complex_response * lpf_complex_response
+        magnitude_response_bpf[i] = np.abs(bpf_complex_response)
+
+    return frequencies, magnitude_response_bpf
 
 def moving_average(data, window_size):
     N = window_size

@@ -8,9 +8,9 @@ from traceback import print_exc
 class Logic:
     def __init__(self, variable):
         self.var = variable
-        # self.file_path = "data/samples_10sec.csv"
+        self.file_path = "data/samples_10sec.csv"
         # self.file_path = "data/samples_1minute.csv"
-        self.file_path = "data/samples (7).csv"
+        # self.file_path = "data/samples (7).csv"
         self.segmentation = {}
         self.dataSignal = pd.DataFrame()
         self.filter_result = {}
@@ -30,20 +30,16 @@ class Logic:
             if self.var.dataECG is not None:
                 fs = 2 * np.max(np.abs(self.var.dataECG))
                 duration = len(self.var.dataECG) * DEFAULT_SAMPLE_INTERVAL
-                self.compute_dft("Raw ECG", self.var.dataECG, fs)
 
             # Display the data
             st.subheader("Plot Raw data...")
             self.merged_data_plot("Raw ECG",["Raw ECG"])
             st.write(f"fs: {fs}, Duration: {duration:.2f} seconds, data: {len(self.var.dataECG)}")
-            if show_dft:
-               self.dft_plot("DFT Raw", ["Raw ECG"], absolute=True, fs=fs)
        
             if self.var.dataECG is not None:
                 st.subheader("Plot filtered data...")
                 # Apply filters threshold
-                fcl = np.max(np.abs(self.var.dataECG)) * 0.45
-
+                fcl = 100
                 self.get_filter_parameters(fcl, 0, 2)
                 if self.filter_params:
                     self.filtered_data = self.applyFilter(
@@ -57,16 +53,121 @@ class Logic:
                     )
                 self.dataSignal["LPF"] = self.filtered_data
                 self.merged_data_plot("After Prefiltering")
-                self.compute_dft("LPF", self.filtered_data, fs)
-                if show_dft:
-                    self.dft_plot("DFT Raw vs LPF", ["Raw ECG", "LPF"], absolute=True, fs=fs)                    
                 
                 seg_data = self.var.filtered_data
-                self.process_segmentation(seg_data, window_name="Segmentation")
+                t_idx, p_idx, qrs_idx, p_dat, qrs_dat, t_dat = segmented_ecg(seg_data)
+                
+                self.filter_result["P-wave"] = p_dat
+                self.filter_result["QRS-complex"] = qrs_dat
+                self.filter_result["T-wave"] = t_dat
+
+                # Create DataFrame for Altair - show only 80 samples
+                # Get a window of 80 samples (or fewer if signal is shorter)
+                window_size = min(80, len(seg_data))
+                
+                # If the signal has QRS complexes, center the window around the first QRS complex
+                start_idx = 0
+                if len(qrs_idx) > 0:
+                    # Center the window around the first QRS complex
+                    center = qrs_idx[0]
+                    start_idx = max(0, center - window_size // 2)
+                    end_idx = min(len(seg_data), start_idx + window_size)
+                    # Adjust start if end went beyond signal length
+                    if end_idx - start_idx < window_size:
+                        start_idx = max(0, end_idx - window_size)
+                else:
+                    end_idx = window_size
+                
+                # Slice the data
+                windowed_data = seg_data[start_idx:end_idx]
+                
+                # Create base dataframe with filtered ECG data
+                df_ecg = pd.DataFrame({
+                    'index': range(start_idx, end_idx),
+                    'value': windowed_data,
+                    'type': 'Filtered ECG'
+                })
+                
+                # Filter points to only show those in our window
+                in_window = lambda idx: idx >= start_idx and idx < end_idx
+                
+                # Create dataframes for P, QRS, T points in the window
+                df_p = pd.DataFrame({
+                    'index': [i for i in p_idx if in_window(i)], 
+                    'value': [p_dat[list(p_idx).index(i)] for i in p_idx if in_window(i)], 
+                    'type': 'P-wave'
+                }) if len(p_idx) > 0 else pd.DataFrame()
+                
+                df_qrs = pd.DataFrame({
+                    'index': [i for i in qrs_idx if in_window(i)], 
+                    'value': [qrs_dat[list(qrs_idx).index(i)] for i in qrs_idx if in_window(i)], 
+                    'type': 'QRS-complex'
+                }) if len(qrs_idx) > 0 else pd.DataFrame()
+                
+                df_t = pd.DataFrame({
+                    'index': [i for i in t_idx if in_window(i)], 
+                    'value': [t_dat[list(t_idx).index(i)] for i in t_idx if in_window(i)], 
+                    'type': 'T-wave'
+                }) if len(t_idx) > 0 else pd.DataFrame()
+                
+                # Combine all points for the scatter plot
+                df_points = pd.concat([df_p, df_qrs, df_t])
+                
+                # Create the line chart
+                line_chart = alt.Chart(df_ecg).mark_line(opacity=0.5, color='blue').encode(
+                    x=alt.X('index:Q', title='Sample Index'),
+                    y=alt.Y('value:Q', title='Amplitude')
+                )
+                
+                # Create the scatter plot for wave points
+                if not df_points.empty:
+                    scatter_chart = alt.Chart(df_points).mark_circle(size=100).encode(
+                        x='index:Q',
+                        y='value:Q',
+                        color=alt.Color('type:N', scale=alt.Scale(
+                            domain=['P-wave', 'QRS-complex', 'T-wave'],
+                            range=['green', 'red', 'purple']
+                        )),
+                        tooltip=['type', 'index', 'value']
+                    )
                     
-                # Apply high-pass filter threshold 
-                fcl_bpf = np.max(np.abs(self.var.filtered_data)) * 0.65
-                fch_bpf = np.max(np.abs(self.var.filtered_data)) * 0.3
+                    # Combine charts
+                    chart = (line_chart + scatter_chart).properties(
+                        title='Segmented ECG Signal (80 Samples Window)',
+                        width=700,
+                        height=400
+                    ).configure_axis(
+                        grid=True
+                    ).configure_view(
+                        strokeWidth=0
+                    ).interactive()
+                else:
+                    chart = line_chart.properties(
+                        title='Segmented ECG Signal (80 Samples Window)',
+                        width=700,
+                        height=400
+                    ).configure_axis(
+                        grid=True
+                    ).configure_view(
+                        strokeWidth=0
+                    ).interactive()
+                
+                st.altair_chart(chart, use_container_width=True)
+
+                # Store DFT results in the cache for later plotting
+                fs_seg = fs
+                self.compute_dft("P-wave", p_dat, fs_seg)
+                self.compute_dft("QRS-complex", qrs_dat, fs_seg)
+                self.compute_dft("T-wave", t_dat, fs_seg)
+                
+                # Plot segmentation components
+                if show_dft and len(p_dat) > 0 and len(qrs_dat) > 0 and len(t_dat) > 0:
+                    self.dft_plot("ECG Segments DFT", ["P-wave", "QRS-complex", "T-wave"], absolute=True, fs=fs)
+                
+                dft_result ,used_fs =self.compute_dft("QRS-complex", fs_seg)
+                freq_values, mag_value = dft_result 
+
+                fch_bpf, fcl_bpf =peak_magnitude(freq_values, mag_value)
 
                 self.get_filter_parameters(fcl_bpf,fch_bpf,4)
                 if self.filter_params:
@@ -84,6 +185,11 @@ class Logic:
                 self.compute_dft("BPF", self.filtered_data, fs)
                 if show_dft:
                     self.dft_plot("DFT BPF", ["BPF"], absolute=True, fs=fs)
+
+                self.display_filter_response(filter_type="BPF", 
+                                             fcl=self.filter_params["fc_l"],
+                                             fch=self.filter_params["fc_h"],
+                                             fs=fs)                
 
             if self.var.filtered_data is not None:
                 st.subheader("Performing Heart beat calculation...")
@@ -143,41 +249,6 @@ class Logic:
         except ValueError:
             st.error("Please enter valid numeric values: two floats for cutoff frequencies and an integer for order")
             return None
-        
-    def process_segmentation(self, ecg_data, expanded= False, window_name="segmentation"):
-        segments = {}
-
-        with st.expander(f"{window_name}...", expanded=expanded):
-            threshold = np.max(ecg_data) * 0.05 + np.std(ecg_data)
-            r_peaks = []
-            
-            for i in range(1, len(ecg_data)-1):
-                if (ecg_data[i] > ecg_data[i-1] and 
-                    ecg_data[i] > ecg_data[i+1] and 
-                    ecg_data[i] > threshold):
-                    # Ensure minimum distance between peaks
-                    if not r_peaks or i - r_peaks[-1] > 30:  # ~300ms at 100Hz
-                        r_peaks.append(i)
-            
-            if r_peaks:
-                # Perform segmentation
-                segments = segment_ecg(ecg_data, r_peaks)
-                
-                # Visualize the segments using Altair
-                visualize_pqrst_altair(ecg_data, segments)
-
-                # Display metrics for each wave type
-                col1, col2, col3, col4, col5 = st.columns(5)
-                with col1:
-                    st.metric("P", f"{len(segments['P'])}")
-                with col2:
-                    st.metric("Q", f"{len(segments['Q'])}")
-                with col3:
-                    st.metric("R", f"{len(segments['R'])}")
-                with col4:
-                    st.metric("S", f"{len(segments['S'])}")
-                with col5:
-                    st.metric("T", f"{len(segments['T'])}")
                     
     # ======== filter section =========
     def applyFilter(self, filter_type="LPF", data_input=None, plot=False,fcl=None, fch=None, orde=None, frequencySampling=None):
@@ -202,14 +273,11 @@ class Logic:
         
         try:
             if filter_type == "LPF":
-                b, a = LPF(fcl, orde, frequencySampling)
-                # st.write("A: ", a,"B:", b)
-                filtered_data = forward_backward_filter(b, a, data_input)
+                filtered_data = LPF(data_input, fcl, frequencySampling)
                 if plot:
                     self.dft_plot("DFT LPF", ["LPF"], absolute=True, fs=frequencySampling)
             elif filter_type == "HPF":
-                b, a = HPF(fch, orde, frequencySampling)
-                filtered_data = forward_backward_filter(b, a, data_input)                
+                filtered_data = HPF(data_input, fch, frequencySampling)
                 if plot:
                     self.dft_plot("DFT HPF", ["HPF"], absolute=True, fs=frequencySampling)
 
@@ -323,13 +391,18 @@ class Logic:
         # Check if the specified filters are in the filter_result
         for filter_name in filters_to_process:
             if filter_name in self.filter_result:
-                dft_data, used_fs = self.compute_dft(filter_name, self.filter_result[filter_name], fs)
+                dft_result, used_fs = self.compute_dft(filter_name, self.filter_result[filter_name], fs)
                 
-                # Store the DFT result in the dictionary
-                dft_results[filter_name] = dft_data
+                # Extract the magnitude values (second element of the tuple)
+                # Store only the magnitude part in the dictionary
+                if dft_result is not None:
+                    freq_values, mag_values = dft_result
+                    dft_results[filter_name] = mag_values
+                else:
+                    st.warning(f"Failed to compute DFT for '{filter_name}'")
             else:
                 st.warning(f"Filter '{filter_name}' Not Found (404).")
-
+        
         # Plot the DFT results using the plotDFTs function        
         if dft_results:
             plotDFTs(f"{title} - DFT", dft_results, fs, absolute)
@@ -348,9 +421,43 @@ class Logic:
                 st.warning(f"Filter '{label}' Not Found (404).")
                 return None, None
         
-        dft_result = DFT(data)
+        freq_values, mag_values = DFT(data, fs)
+        dft_result = (freq_values, mag_values)
         self.dft_cache[label] = {
             'dft': dft_result,
             'fs': fs
         }
         return dft_result, fs
+
+    def display_filter_response(self, filter_type="BPF", fcl=None, fch=None, fs=None):
+        """
+        Calculate and display the frequency response of a filter.
+        
+        Args:
+            filter_type (str): Filter type (BPF, LPF, HPF)
+            fcl (float): Low cutoff frequency
+            fch (float): High cutoff frequency
+            fs (float): Sampling frequency
+        """
+        if not fcl or not fch or not fs:
+            st.warning("Please provide valid filter parameters.")
+            return
+        
+        st.subheader(f"{filter_type} Frequency Response")
+        st.write(f"Low cutoff: {fcl} Hz, High cutoff: {fch} Hz, Sampling rate: {fs} Hz")
+        
+        # Calculate the frequency response
+        freq, response = frequency_response(
+            signal=np.zeros(100),  # Dummy signal, not used in calculation
+            fs=fs,
+            fl=fcl,
+            fh=fch
+        )
+        
+        # Plot the frequency response
+        plotFrequencyResponse(
+            title="Filter Frequency Response",
+            freq=freq,
+            response=response,
+            filter_name=filter_type
+        )

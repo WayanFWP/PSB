@@ -145,12 +145,12 @@ def plotDFTs(title="comparasion", dft_data=None, fs=None, absolute=False):
                 padded_dft[:len(dft_array)] = dft_array
                 df_dft[name] = np.real(padded_dft[:max_idx])
     
-    df_dft_long = df_dft.melt(id_vars=["Frequency"], var_name="Signal", value_name="Value")
+    df_dft_long = df_dft.melt(id_vars=["Frequency"], var_name="Signal", value_name="magnitude")
     chart = alt.Chart(df_dft_long).mark_line().encode(
         x='Frequency',
-        y='Value',
+        y='magnitude',
         color='Signal',
-        tooltip=['Frequency', 'Signal', 'Value']
+        tooltip=[ 'magnitude', 'Signal', 'Frequency']
     ).properties(
         title=title,
         width=800,
@@ -265,3 +265,37 @@ def visualize_heart_rate(mav, r_peaks, r_values, threshold):
     ).interactive()
     
     st.altair_chart(chart, use_container_width=True)
+
+def plotFrequencyResponse(title="Filter Frequency Response", freq=None, response=None, filter_name="BPF"):
+    """
+    Plot the frequency response of a filter.
+    
+    Args:
+        title (str): Title of the chart
+        freq (array): Frequency array
+        response (array): Magnitude response array
+        filter_name (str): Name of the filter
+    """
+    if freq is None or response is None:
+        st.warning("No frequency response data to plot.")
+        return
+    
+    # Create DataFrame for plotting
+    df = pd.DataFrame({
+        "Frequency (Hz)": freq,
+        "Magnitude": response
+    })
+    
+    # Create chart using Altair
+    chart = alt.Chart(df).mark_line().encode(
+        x=alt.X('Frequency (Hz):Q', title='Frequency (Hz)'),
+        y=alt.Y('Magnitude:Q', title='Magnitude Response'),
+        tooltip=['Frequency (Hz):Q', 'Magnitude:Q']
+    ).properties(
+        title=f"{title} - {filter_name}",
+        width=800,
+        height=400
+    ).interactive()
+    
+    st.altair_chart(chart, use_container_width=True)
+    return df
